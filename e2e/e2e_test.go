@@ -4,6 +4,7 @@ package e2e
 
 import (
 	"testing"
+	"time"
 
 	"github.com/jxsl13/twclient/packet"
 )
@@ -55,4 +56,34 @@ func TestE2ESmoke(t *testing.T) {
 		t.Fatalf("smoke %s: no snapshot within %s (LastSnapTick=%d)", addr, snapTimeout, c.LastSnapTick())
 	}
 	t.Logf("smoke %s: connected, snapshot tick=%d roster=%d", addr, c.LastSnapTick(), len(c.Roster()))
+}
+
+// TestE2ESustainedLiveness is the §B4 regression: a session must stay alive PAST
+// the server's sv_timeout window. teetui (and this harness) bound the session to
+// a 12s connect ctx, so after ~12s twclient's reader + keepalive died and the
+// server dropped the client — snapshots froze. This holds one connection for
+// >15s and asserts the snapshot tick keeps advancing (§V25/§V22). The buggy
+// shape freezes near zero advance and fails here.
+func TestE2ESustainedLiveness(t *testing.T) {
+	requireHarness(t)
+
+	addr := env("TW_E2E_DDNET_06", "ddnet:8303")
+	c := dialClient(t, packet.Version06, addr)
+	if !waitSnapshot(t, c) {
+		t.Fatalf("sustained %s: no initial snapshot within %s", addr, snapTimeout)
+	}
+
+	t1 := c.LastSnapTick()
+	const hold = 16 * time.Second // > connectTimeout (12s) and > sv_timeout (~10s)
+	time.Sleep(hold)
+	t2 := c.LastSnapTick()
+	adv := t2 - t1
+
+	// ~50 ticks/s × 16s ≈ 800; require a generous lower bound that still proves
+	// the session survived the timeout window (B4 froze the tick → adv ≈ 0).
+	if adv < 500 {
+		t.Fatalf("session died past timeout window (B4 regression): snapshot advanced only %d ticks in %s (t1=%d t2=%d)",
+			adv, hold, t1, t2)
+	}
+	t.Logf("sustained liveness OK: +%d ticks over %s (t1=%d t2=%d) roster=%d", adv, hold, t1, t2, len(c.Roster()))
 }

@@ -873,9 +873,23 @@ func (a *App) Join(addr string, ver packet.Version) {
 
 	a.log.Addf(StyleSystem, "connecting to %s …", addr)
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
-		defer cancel()
-		if err := c.Connect(ctx); err != nil {
+		// fctx is the SESSION lifetime: twclient binds the reader + keepalive +
+		// all I/O to the ctx passed to Connect, so it MUST live as long as the
+		// session — cancelling it tears the connection down and the server times
+		// us out (§V25, §B4). The handshake is bounded by a watchdog that cancels
+		// fctx ONLY while still connecting; once connected it never fires.
+		stop := make(chan struct{})
+		go func() {
+			select {
+			case <-time.After(connectTimeout):
+				if !a.connected.Load() {
+					fcancel() // abort a stuck handshake (does NOT cap a live session)
+				}
+			case <-stop:
+			}
+		}()
+		if err := c.Connect(fctx); err != nil {
+			close(stop)
 			a.log.Addf(StyleSelf, "%s", connectFailMsg(addr, ver, err))
 			a.log.Addf(StyleSystem, "press R to reconnect")
 			fcancel()
@@ -883,11 +897,16 @@ func (a *App) Join(addr string, ver packet.Version) {
 			return
 		}
 		a.SetConnected(true)
+		close(stop) // connected → watchdog must not cancel the live session
 		a.log.Addf(StyleSystem, "connected.")
 		go c.RunFrontends(fctx) // drive observer (render) + controller (input)
 		a.wake()
 	}()
 }
+
+// connectTimeout bounds the handshake; after it the watchdog aborts a still-
+// pending connect (§T52). It does NOT cap the live session (§V25).
+const connectTimeout = 12 * time.Second
 
 // reconnect re-runs Join against the current server using the protocol version
 // recorded by the last Join, so the user can retry after a connect failure

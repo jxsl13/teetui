@@ -61,19 +61,35 @@ func connectClient(t *testing.T, version packet.Version, addr string) (*client.C
 		client.WithPlayerInfo("teetui-e2e", "", "default", -1),
 	)
 
-	connCtx, connCancel := context.WithTimeout(t.Context(), connectTimeout)
-	t.Cleanup(connCancel)
-	if err := c.Connect(connCtx); err != nil {
+	// §V25/§B4: the ctx passed to Connect is the SESSION lifetime (twclient binds
+	// the reader + keepalive to it). It must be long-lived, NOT a connectTimeout
+	// ctx — a short ctx tears the session down and the server times us out. Bound
+	// the handshake with a watchdog that cancels ONLY while still connecting.
+	// teetui's App.Join uses exactly this shape (§T52).
+	sessCtx, sessCancel := context.WithCancel(context.Background())
+	t.Cleanup(sessCancel)
+	connected := make(chan struct{})
+	go func() {
+		select {
+		case <-time.After(connectTimeout):
+			select {
+			case <-connected:
+			default:
+				sessCancel() // abort a stuck handshake; never caps a live session
+			}
+		case <-connected:
+		}
+	}()
+	if err := c.Connect(sessCtx); err != nil {
+		close(connected)
 		return nil, err
 	}
+	close(connected)
 	t.Cleanup(func() { _ = c.Close() })
 
-	// §V22: drive the frontends on a long-lived context (distinct from the
-	// connect timeout), cancelled on cleanup. teetui starts this after every
-	// successful Connect; the harness mirrors that so it exercises the same path.
-	fctx, fcancel := context.WithCancel(context.Background())
-	t.Cleanup(fcancel)
-	go c.RunFrontends(fctx)
+	// §V22: drive the Observer/Controller frontends on the same long-lived
+	// session ctx. teetui starts this after every successful Connect.
+	go c.RunFrontends(sessCtx)
 
 	return c, nil
 }
