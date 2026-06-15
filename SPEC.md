@@ -221,7 +221,7 @@ T49|x|CI/CD e2e job: build server images (matrix), run `go test -tags e2e ./e2e/
 T50|x|connect UX: actionable timeout msg (addr/version/network) in log + reconnect/retry key; ?auto-detect protocol via connless `QueryServerInfo` probe before Connect|V24,I.windows
 T51|x|browser LAN tab → REAL subnet scan via twclient v0.2.3 `master.ScanLAN` (broadcast 0.6+0.7, dedupe), replacing localhost-port probe (upgrades T45). map `[]LANServer`→serverRow into LAN source|I.windows,V13
 T52|x|FIX B4: `App.Join` → `Connect(fctx)` (long-lived session ctx); drop `defer cancel` of session ctx; bound handshake via watchdog goroutine that cancels fctx ONLY if still `!connected` after ~12s. + EXTEND e2e (T48): assert SUSTAINED liveness — snapshots keep advancing >15s (past sv_timeout), ⊥ just initial tick|V25,V22,V24
-T53|.|FIX B6 spectator render: DrawGame/DrawGameHalf center on spectated target | free-view | any visible tee when no `Players[LocalID]`; render map+tees as spectator (⊥ "connecting…")|V27,I.render
+T53|x|FIX B6 spectator render: DrawGame/DrawGameHalf center on spectated target | free-view | any visible tee when no `Players[LocalID]`; render map+tees as spectator (⊥ "connecting…")|V27,I.render
 T54|.|FIX B7 connect msg: raise connectTimeout (real-server map download) + make configurable; surface connect-fail in log ONLY on terminal failure (⊥ if a reconnect then succeeds)|V28,V25
 T55|.|FIX B8 own-chat: locally echo sent chat (all+team) into log immediately on send; dedupe the server echo (by msg+recent time)|V29,I.windows
 T56|.|B5 mitigation: scoreboard/chat id fallback when roster name empty (verify) + file twclient feature for 0.6 ClientInfo→registry decode (SPEC-player-registry T6)|V26

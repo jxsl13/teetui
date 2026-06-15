@@ -47,17 +47,40 @@ func padCol(s string, w int) string {
 // DrawGame renders the map and entities into the rectangle (x0,y0,w,h), camera
 // centered on the local tee. State arrives via the Observer (§V2); only changed
 // cells are touched and no per-frame allocation occurs on the tile loop (§V7).
+// cameraCenter returns the tile coords the game view centers on. It prefers the
+// local tee, but when there is none — spectating / free-view (§V27/§B6) — it
+// follows the lowest-id visible player, then falls back to the map center, so
+// the view renders instead of sitting on "connecting…". ok is false only when
+// there is nothing to anchor on at all.
+func cameraCenter(st client.TickState) (cx, cy int, ok bool) {
+	if self, has := st.Players[st.LocalID]; has {
+		return self.X / tileSize, self.Y / tileSize, true
+	}
+	best := -1
+	for id := range st.Players {
+		if best < 0 || id < best {
+			best = id
+		}
+	}
+	if best >= 0 {
+		ch := st.Players[best]
+		return ch.X / tileSize, ch.Y / tileSize, true
+	}
+	if st.Map != nil && st.Map.Width() > 0 {
+		return st.Map.Width() / 2, st.Map.Height() / 2, true
+	}
+	return 0, 0, false
+}
+
 func DrawGame(s tcell.Screen, x0, y0, w, h int, st client.TickState) {
 	if w < 1 || h < 1 {
 		return
 	}
-	self, ok := st.Players[st.LocalID]
-	if !ok || st.Map == nil {
+	cx, cy, ok := cameraCenter(st)
+	if st.Map == nil || !ok {
 		drawStr(s, x0, y0, w, StyleSystem, "connecting…")
 		return
 	}
-	cx := self.X / tileSize
-	cy := self.Y / tileSize
 	halfW := w / 2
 	halfH := h / 2
 
@@ -109,16 +132,20 @@ func DrawGame(s tcell.Screen, x0, y0, w, h int, st client.TickState) {
 		}
 		plot(ch.X, ch.Y, g, StyleOther)
 	}
-	if self.HookState > 0 {
-		plot(self.HookX, self.HookY, '+', StyleHook)
+	// Self tee on top — only when we have a local character (not while spectating).
+	if self, has := st.Players[st.LocalID]; has {
+		if self.HookState > 0 {
+			plot(self.HookX, self.HookY, '+', StyleHook)
+		}
+		g := 'o'
+		if self.Weapon == weaponNinja {
+			g = 'ø'
+		}
+		plot(self.X, self.Y, g, StyleSelf)
 	}
-	g := 'o'
-	if self.Weapon == weaponNinja {
-		g = 'ø'
-	}
-	plot(self.X, self.Y, g, StyleSelf)
 
-	// HUD: live local-tee tile coordinates (§T34).
+	// HUD: camera-center tile coordinates (local tee, or follow target while
+	// spectating, §T34/§V27).
 	drawStr(s, x0, y0+h-1, w, StyleSystem, hudText(cx, cy))
 }
 
@@ -144,13 +171,11 @@ func DrawGameHalf(s tcell.Screen, x0, y0, w, h int, st client.TickState) {
 	if w < 1 || h < 1 {
 		return
 	}
-	self, ok := st.Players[st.LocalID]
-	if !ok || st.Map == nil {
+	cx, cy, ok := cameraCenter(st)
+	if st.Map == nil || !ok {
 		drawStr(s, x0, y0, w, StyleSystem, "connecting…")
 		return
 	}
-	cx := self.X / tileSize
-	cy := self.Y / tileSize
 	halfW := w / 2
 	// 2*h map rows are shown, vertically centered on cy → top map row is cy-h.
 	topRow := cy - h
@@ -198,14 +223,16 @@ func DrawGameHalf(s tcell.Screen, x0, y0, w, h int, st client.TickState) {
 		}
 		plot(ch.X, ch.Y, g, StyleOther)
 	}
-	if self.HookState > 0 {
-		plot(self.HookX, self.HookY, '+', StyleHook)
+	if self, has := st.Players[st.LocalID]; has {
+		if self.HookState > 0 {
+			plot(self.HookX, self.HookY, '+', StyleHook)
+		}
+		g := 'o'
+		if self.Weapon == weaponNinja {
+			g = 'ø'
+		}
+		plot(self.X, self.Y, g, StyleSelf)
 	}
-	g := 'o'
-	if self.Weapon == weaponNinja {
-		g = 'ø'
-	}
-	plot(self.X, self.Y, g, StyleSelf)
 
 	drawStr(s, x0, y0+h-1, w, StyleSystem, hudText(cx, cy))
 }
