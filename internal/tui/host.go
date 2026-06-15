@@ -17,6 +17,13 @@ type dynVar struct {
 	help  string
 }
 
+// featCmd is a feature-defined F1 console command (§T92): a help line + a
+// handler taking the raw argument string and returning output lines.
+type featCmd struct {
+	help string
+	run  func(args string) []string
+}
+
 // appHost adapts *App to feature.Host — the capability surface handed to feature
 // modules (§T76/§I.feature). It exposes only teetui's safe twclient-backed
 // actions plus the registration sinks (config/action/status/name-style/service/
@@ -106,6 +113,15 @@ func (h appHost) DefineAction(name, defaultKey, help string, run func()) {
 	}
 }
 
+// DefineCommand registers an F1 console command for a feature (§T92). The
+// handler receives the raw argument string and returns log lines.
+func (h appHost) DefineCommand(name, help string, run func(args string) []string) {
+	if name == "" || run == nil {
+		return
+	}
+	h.a.featCmds[name] = &featCmd{help: help, run: run}
+}
+
 // AddStatusField registers a status-bar contribution (§T76).
 func (h appHost) AddStatusField(fn func() string) {
 	if fn != nil {
@@ -172,6 +188,17 @@ func (a *App) tryDynVar(line string) ([]string, bool) {
 	}
 	v.value = rest
 	return []string{fmt.Sprintf("%s set to %q", cmd, v.value)}, true
+}
+
+// tryFeatCmd dispatches a console line to a feature command if one matches its
+// first token (§T92). Returns (output, true) when handled.
+func (a *App) tryFeatCmd(line string) ([]string, bool) {
+	cmd, args, _ := strings.Cut(strings.TrimSpace(line), " ")
+	fc, ok := a.featCmds[cmd]
+	if !ok {
+		return nil, false
+	}
+	return fc.run(strings.TrimSpace(args)), true
 }
 
 // nameStyle returns the first feature-contributed style for a name/clan (§T76).

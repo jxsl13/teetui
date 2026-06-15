@@ -69,6 +69,8 @@ type Host interface {
 	OnSendChat(fn func(msg string, team bool) (out string, send bool))
 	// named, rebindable actions (respect the keymap, §V19) + a default key
 	DefineAction(name, defaultKey, help string, run func())
+	// F1 console commands (args string → output lines)
+	DefineCommand(name, help string, run func(args string) []string)
 	// status-bar / HUD contributions
 	AddStatusField(fn func() string)
 	// render contributions: per-name style (scoreboard/nameplate coloring)

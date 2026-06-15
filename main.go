@@ -10,6 +10,10 @@ import (
 
 	"github.com/jxsl13/teetui/internal/tui"
 	"github.com/jxsl13/twclient/packet"
+
+	// Feature modules (§C21): each self-registers in init(); blank-import to
+	// enable. Add a feature = add a package + one import line here.
+	_ "github.com/jxsl13/teetui/features/team"
 )
 
 func main() {

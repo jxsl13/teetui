@@ -206,6 +206,8 @@ type Host interface {                          // the SUFFICIENT capability surf
   OnSendChat(func(msg string, team bool) (out string, send bool))
   // named, REBINDABLE actions (respect keymap, V19) + default key (for H, etc.)
   DefineAction(name, defaultKey, help string, run func())
+  // F1 console commands (for !filter mgmt, `team`/`join`, … — replaces inline core cmds)
+  DefineCommand(name, help string, run func(args string) (out []string))
   // status-bar / HUD contributions (for cl_show_last_ping, coords, …)
   AddStatusField(func() string)
   // render contributions (warlist name coloring into scoreboard/nameplate)
@@ -284,6 +286,7 @@ func main(){ tui.Main() }   // base client provisions all feature.Registered()
 - V49: visual ON → log band = clamp(`cl_log_lines`, 1, ⌊h/2⌋) rows (default 10), game fills the body above it; visual OFF → logs fill the whole body. log band ⊥ exceed ⌊h/2⌋ when visual on, for ANY h ≥ min (V32). (C22)
 - V50: layout recomputed from live terminal size each render (C17/V30); resize re-clamps the log band; min-size guard (V32) still wins below Wmin×Hmin. (C22)
 - V51: CLI surface = ONLY `-config <file>`; ∀ other setting via the config file (cvars/cmds) or runtime console — ⊥ per-setting flags. missing/partial file → defaults, ⊥ crash. connect protocol version = master/scan entry on browser/LAN join | `connect` arg | default 0.6; ⊥ global version flag. (C23)
+- V52: team join/switch via `client.ActSetTeam{Team}` ONLY (V12) — ⊥ raw team packet. team ids: spectators=-1, red/game-flock=0, blue=1. non-team game → `join`=team 0. console `team <spectators|red|blue|game>` + `join`; distinct from spectate (V27/§T37, `ActSetSpectator`). exceeds chillerbot terminal (no team-select there). (← GUI client team menu)
 
 ## §T — tasks
 
@@ -368,7 +371,7 @@ T77|x|shared `lang` library pkg: move langparser (findWord/isGreeting/…/questi
 T78|.|feature `features/warlist`: warlist store + `!war/!peace/!team/!del/!reason/!search/!create/!addreason/!unfriend` (+clan) via OnSendChat + scoreboard/nameplate coloring via AddNameStyle + auto-reload + own cvars (cl_silent_chat_commands, cl_war_list_auto_reload); Provides "warlist" service|C21,V44,V14
 T79|.|feature `features/replytoping`: H DefineAction → composeReply (lang lib smalltalk/greeting/no-context) over a last-ping queue; reads PlayerName via Host|C21,V44,V33
 T80|.|feature `features/chatquery`: war-status/where/os/list answers; Lookup("warlist") for relations+reasons; uses Roster/Tick/PlayerClan from Host|C21,V44,V34
-T81|.|feature `features/chatfilter`: incoming spam/insult/user filters via OnChat suppress; own cvars (cl_chat_spam_filter[_insults]) + console addfilter/listfilter/delfilter via DefineAction/commands|C21,V44,V36
+T81|.|feature `features/chatfilter`: incoming spam/insult/user filters via OnChat suppress; own cvars (cl_chat_spam_filter[_insults]) + console addfilter/listfilter/delfilter via Host.DefineCommand|C21,V44,V36
 T82|.|feature `features/responders`: tapped-out (cl_tapped_out_message[_text]) + auto-reply (cl_auto_reply[_msg]) on ping; own cvars; rate-limited; reads PlayerName|C21,V44,V33
 T83|.|feature `features/lastping`: 16-deep ping queue + AddStatusField (cl_show_last_ping); Provides "pings" for replytoping (or replytoping owns queue + Provides)|C21,V44,V35
 T84|.|feature `features/chillpw`: opt-in rcon auto-login from secrets file on OnConnect; own cvars (cl_chillpw, cl_password_file); secret never logged|C21,V44,V38
@@ -379,6 +382,7 @@ T88|x|`cl_log_lines` config (default 10) + `-log-lines` flag: log-band rows when
 T89|.|config-file exec: teeworlds-style `.cfg` parser (one `command [args]` per line, `#` comments, quoted strings) → run each via the console/cvar layer at startup; add `player_name`/`player_clan` cvars + `connect <addr> [0.6|0.7]` console cmd; identity from cvars|C23,V51,I.cli,I.config
 T90|.|reduce CLI to `-config <file>` only: delete all other flags from `main.go`; load+exec the cfg if given else defaults; ⊥ auto-connect when no `connect` cmd → open browser|C23,V51,I.cli
 T91|.|connect uses per-entry protocol version: browser/LAN join passes master/scan `Version` (verify, already wired); `connect` cmd arg or default 0.6 otherwise; ⊥ global version flag/cvar|C23,V51,V8
+T92|x|feature `features/team` (NEW, exceeds chillerbot — GUI team-select has no terminal equiv): Host.DefineCommand `team <spectators|red|blue|game>` + `join` (+ ?DefineAction key) → Host.Do(ActSetTeam{spectators=-1\|red/game=0\|blue=1}); non-team game → join=team 0; distinct from spectate (§T37). needs Host.DefineCommand (extends §I.feature/T76 host, V47)|C21,V52,V12,I.feature
 
 ## §B — bugs
 

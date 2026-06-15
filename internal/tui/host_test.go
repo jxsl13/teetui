@@ -18,6 +18,7 @@ func (f *tfeat) Provision(h feature.Host) error {
 	h.DefineConfig("cl_tfeat", "7", "demo cvar")
 	h.DefineAction("tfeat", "g", "demo action", func() { f.acted = true })
 	h.AddStatusField(func() string { return "TF-OK" })
+	h.DefineCommand("tcmd", "demo cmd", func(args string) []string { return []string{"tcmd-ran:" + args} })
 	h.OnSendChat(func(msg string, team bool) (string, bool) {
 		if msg == "block" {
 			return msg, false
@@ -58,6 +59,18 @@ func TestHostProvisioning(t *testing.T) {
 	app.draw()
 	if !strings.Contains(dumpSim(sim), "TF-OK") {
 		t.Error("feature status field not rendered")
+	}
+
+	// Feature console command dispatched via runLocal (§T92).
+	app.runLocal("tcmd hello")
+	found := false
+	for _, ln := range app.log.Tail(5) {
+		if strings.Contains(ln.Text, "tcmd-ran:hello") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("feature console command did not run via the console")
 	}
 
 	// Service registry.

@@ -90,6 +90,7 @@ type App struct {
 
 	// feature-module registries (§T76): populated by Host calls during Provision.
 	dynVars      map[string]*dynVar                            // feature-defined cvars
+	featCmds     map[string]*featCmd                           // feature console commands (§T92)
 	featActRune  map[rune]func()                               // feature actions bound to a rune
 	featActKey   map[tcell.Key]func()                          // feature actions bound to a named key
 	statusFields []func() string                               // status-bar contributions
@@ -151,6 +152,7 @@ func NewAppWithScreen(scr tcell.Screen, server string, state *State, input *Inpu
 		quit:     make(chan struct{}),
 
 		dynVars:     map[string]*dynVar{}, // feature registries (§T76)
+		featCmds:    map[string]*featCmd{},
 		featActRune: map[rune]func(){},
 		featActKey:  map[tcell.Key]func(){},
 		services:    map[string]any{},
@@ -1045,6 +1047,13 @@ func (a *App) runLocal(line string) {
 	// Feature-defined cvars (§T76) are get/set here before the static console,
 	// so `cl_feature_var` and `cl_feature_var 1` work like any core cvar.
 	if out, ok := a.tryDynVar(line); ok {
+		for _, o := range out {
+			a.log.Addf(StyleSystem, "] %s", o)
+		}
+		return
+	}
+	// Feature-defined console commands (§T92) run before the static console.
+	if out, ok := a.tryFeatCmd(line); ok {
 		for _, o := range out {
 			a.log.Addf(StyleSystem, "] %s", o)
 		}
