@@ -155,6 +155,11 @@ func NewAppWithScreen(scr tcell.Screen, server string, state *State, input *Inpu
 		}
 		_ = a.browser.LoadFavorites(filepath.Join(p, "favorites.txt"))
 		_ = a.keymap.Load(filepath.Join(p, "keymap.txt")) // rebindable keys (§V19/§T42)
+		// Opt-in external command hooks: registered only if ~/.config/teetui/hooks
+		// exists (§T71). Off by default.
+		if h := newCmdHook(filepath.Join(p, "hooks")); h != nil {
+			extension.Register("external-cmd-hooks", h)
+		}
 	}
 	return a
 }
