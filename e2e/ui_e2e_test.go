@@ -15,6 +15,7 @@ import (
 	// feature set (warlist cvars, etc.) — mirrors §C21 main wiring.
 	_ "github.com/jxsl13/teetui/features/chatfilter"
 	_ "github.com/jxsl13/teetui/features/chillpw"
+	_ "github.com/jxsl13/teetui/features/cmdhook"
 	_ "github.com/jxsl13/teetui/features/lastping"
 	_ "github.com/jxsl13/teetui/features/replytoping"
 	_ "github.com/jxsl13/teetui/features/responders"

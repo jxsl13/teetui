@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
-	"github.com/jxsl13/teetui/extension"
 	"github.com/jxsl13/teetui/feature"
 	"github.com/jxsl13/twclient/client"
 	"github.com/jxsl13/twclient/master"
@@ -147,9 +146,6 @@ func NewAppWithScreen(scr tcell.Screen, server string, state *State, input *Inpu
 	// Drive user OnTick hooks from the observer (§T70); guarded so there is zero
 	// per-tick cost when no hooks are registered.
 	a.state.SetTickHook(func(st client.TickState) {
-		if extension.Count() > 0 {
-			extension.FireTick(a.hookCtx(), st)
-		}
 		if feature.Count() > 0 {
 			feature.FireTick(a.host(), st)
 		}
@@ -158,11 +154,6 @@ func NewAppWithScreen(scr tcell.Screen, server string, state *State, input *Inpu
 	if p, err := configDir(); err == nil {
 		_ = a.browser.LoadFavorites(filepath.Join(p, "favorites.txt"))
 		_ = a.keymap.Load(filepath.Join(p, "keymap.txt")) // rebindable keys (§V19/§T42)
-		// Opt-in external command hooks: registered only if ~/.config/teetui/hooks
-		// exists (§T71). Off by default.
-		if h := newCmdHook(filepath.Join(p, "hooks")); h != nil {
-			extension.Register("external-cmd-hooks", h)
-		}
 	}
 	a.provisionFeatures() // provision registered feature modules (§T76)
 	return a
@@ -237,9 +228,6 @@ func (a *App) ShowDisconnect(reason string) {
 	a.mu.Unlock()
 	a.wake()
 
-	if extension.Count() > 0 {
-		extension.FireDisconnect(a.hookCtx(), reason) // user hooks (§T70)
-	}
 	if feature.Count() > 0 {
 		feature.FireDisconnect(a.host(), reason) // feature modules (§T76)
 	}
@@ -410,11 +398,8 @@ func (a *App) handle(ev tcell.Event) {
 			a.log.ScrollDown(1)
 		}
 	case *tcell.EventKey:
-		// Feature/user key hooks get first refusal; returning handled consumes the
-		// key before teetui's own handling (§T70/§T76/§V39). No hooks → no-op.
-		if extension.Count() > 0 && extension.FireKey(a.hookCtx(), keyToHook(ev)) {
-			return
-		}
+		// Feature key hooks get first refusal; returning handled consumes the key
+		// before teetui's own handling (§T76/§V39). No hooks → no-op.
 		if feature.Count() > 0 && feature.FireKey(a.host(), featureKey(ev)) {
 			return
 		}
@@ -1110,9 +1095,6 @@ func (a *App) Join(addr string, ver packet.Version) {
 		close(stop)              // connected → watchdog must not cancel the live session
 		a.log.Addf(StyleSystem, "connected.")
 		go c.RunFrontends(fctx) // drive observer (render) + controller (input)
-		if extension.Count() > 0 {
-			extension.FireConnect(a.hookCtx()) // user hooks (§T70)
-		}
 		if feature.Count() > 0 {
 			feature.FireConnect(a.host()) // feature modules (§T76)
 		}

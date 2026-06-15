@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 
-	"github.com/jxsl13/teetui/extension"
 	"github.com/jxsl13/teetui/feature"
 	"github.com/jxsl13/twclient/client"
 	"github.com/jxsl13/twclient/packet"
@@ -41,12 +40,6 @@ func (a *App) DefaultDialer(name, clan, skin string) func(addr string, ver packe
 			// Incoming chat filtering now lives in the chatfilter feature, which
 			// suppresses via OnChat below (§T81). A hook/feature may suppress the
 			// line (§T70/§T76/§V39); a suppressed line is not logged or ping-tracked.
-			if extension.Count() > 0 {
-				ev := extension.ChatEvent{ClientID: e.ClientID, Name: from, Msg: e.Msg, Team: e.Team != 0}
-				if extension.FireChat(a.hookCtx(), ev) {
-					return
-				}
-			}
 			if feature.Count() > 0 {
 				ev := feature.ChatEvent{ClientID: e.ClientID, Name: from, Msg: e.Msg, Team: e.Team != 0}
 				if feature.FireChat(a.host(), ev) {
@@ -61,29 +54,18 @@ func (a *App) DefaultDialer(name, clan, skin string) func(addr string, ver packe
 			// ping tracking now lives in features/lastping (its OnChat fires above).
 		})
 		c.OnServerMsg(func(_ *client.Client, e packet.EventServerMsg) {
-			if extension.Count() > 0 {
-				extension.FireServerMsg(a.hookCtx(), e.Msg)
-			}
 			if feature.Count() > 0 {
 				feature.FireServerMsg(a.host(), e.Msg)
 			}
 			a.log.Addf(StyleSystem, "*** %s", e.Msg)
 		})
 		c.OnBroadcast(func(_ *client.Client, e packet.EventBroadcast) {
-			if extension.Count() > 0 {
-				extension.FireBroadcast(a.hookCtx(), e.Text)
-			}
 			if feature.Count() > 0 {
 				feature.FireBroadcast(a.host(), e.Text)
 			}
 			a.log.Addf(StyleSystem, ">> %s", e.Text)
 		})
 		c.OnKill(func(_ *client.Client, e packet.EventKill) {
-			if extension.Count() > 0 {
-				extension.FireKill(a.hookCtx(), extension.KillEvent{
-					Killer: e.Killer, Victim: e.Victim, Weapon: int(e.Weapon),
-				})
-			}
 			if feature.Count() > 0 {
 				feature.FireKill(a.host(), feature.KillEvent{
 					Killer: e.Killer, Victim: e.Victim, Weapon: int(e.Weapon),
