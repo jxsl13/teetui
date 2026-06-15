@@ -6,45 +6,64 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-// §V30/§C17: the layout is fully responsive — the game view scales UP with the
-// terminal width (no fixed cap), both panes stay within bounds, and the log
-// keeps a usable minimum width when the terminal can afford it.
-func TestComputeResponsive(t *testing.T) {
-	// The game view must grow as the terminal widens (no maxGameW ceiling).
-	prev := 0
-	for _, w := range []int{80, 160, 320, 640} {
-		l := Compute(w, 40)
-		if l.Game.W <= prev {
-			t.Errorf("game width did not scale up at w=%d: %d (prev %d)", w, l.Game.W, prev)
-		}
-		prev = l.Game.W
-		// Panes within bounds, non-overlapping, log right of game.
-		if l.Game.W < 0 || l.Game.W > w {
-			t.Errorf("w=%d game width %d out of bounds", w, l.Game.W)
-		}
-		if l.Log.X+l.Log.W > w {
-			t.Errorf("w=%d log overflows: x=%d w=%d (screen %d)", w, l.Log.X, l.Log.W, w)
-		}
-		if l.Log.X != l.Game.W+1 {
-			t.Errorf("w=%d log not adjacent to game: logX=%d gameW=%d", w, l.Log.X, l.Game.W)
-		}
-		// On a comfortably wide terminal the log keeps its minimum.
-		if w >= 80 && l.Log.W < minLogW {
-			t.Errorf("w=%d log width %d below min %d", w, l.Log.W, minLogW)
-		}
+// §C22/§V48/§V49: the layout is a vertical stack — full-width status/game/log/
+// input; the log band sits directly above the input bar; visual on caps the log
+// band at ⌊h/2⌋ with the game filling the rest; visual off → logs fill the body.
+func TestComputeVerticalStack(t *testing.T) {
+	const w, h = 100, 40
+	l := Compute(w, h, true, DefaultLogLines)
+
+	// Full-width stack, top→bottom: status(0) / game / log / input(h-1).
+	if l.Status.Y != 0 || l.Status.W != w {
+		t.Errorf("status = %+v", l.Status)
+	}
+	if l.Input.Y != h-1 || l.Input.W != w {
+		t.Errorf("input = %+v", l.Input)
+	}
+	if l.Game.W != w || l.Log.W != w {
+		t.Errorf("body not full width: game.W=%d log.W=%d", l.Game.W, l.Log.W)
+	}
+	// Log band directly above the input bar.
+	if l.Log.Y+l.Log.H != l.Input.Y {
+		t.Errorf("log band not above input: log.Y=%d log.H=%d input.Y=%d", l.Log.Y, l.Log.H, l.Input.Y)
+	}
+	// Game directly above the log band.
+	if l.Game.Y+l.Game.H != l.Log.Y {
+		t.Errorf("game not above log: game.Y=%d game.H=%d log.Y=%d", l.Game.Y, l.Game.H, l.Log.Y)
+	}
+	// Visual on, plenty of room → log band == configured count.
+	if l.Log.H != DefaultLogLines {
+		t.Errorf("log band = %d want %d", l.Log.H, DefaultLogLines)
 	}
 
-	// Narrow terminal: game shrinks toward its minimum, nothing goes negative.
-	for _, w := range []int{10, 20, 30} {
-		l := Compute(w, 10)
-		if l.Game.W < minGameW && w > minGameW {
-			t.Errorf("w=%d game below min: %d", w, l.Game.W)
+	// Cap: a huge requested count is clamped to ⌊h/2⌋ when visual on.
+	if l := Compute(w, h, true, 1000); l.Log.H != h/2 {
+		t.Errorf("log band cap = %d want %d", l.Log.H, h/2)
+	}
+
+	// Visual off → logs fill the whole body, no game.
+	off := Compute(w, h, false, DefaultLogLines)
+	if off.Game.H != 0 {
+		t.Errorf("visual off game.H = %d want 0", off.Game.H)
+	}
+	if off.Log.H != h-2 {
+		t.Errorf("visual off log.H = %d want %d (full body)", off.Log.H, h-2)
+	}
+}
+
+// §V49: the log band never exceeds half the height across sizes, and nothing
+// goes negative or overflows.
+func TestLogBandCap(t *testing.T) {
+	for _, h := range []int{6, 10, 24, 41, 80} {
+		l := Compute(80, h, true, DefaultLogLines)
+		if l.Log.H > h/2 {
+			t.Errorf("h=%d log band %d exceeds half %d", h, l.Log.H, h/2)
 		}
-		if l.Log.W < 0 || l.Game.W < 0 {
-			t.Errorf("w=%d negative pane: game=%d log=%d", w, l.Game.W, l.Log.W)
+		if l.Game.H < 0 || l.Log.H < 0 {
+			t.Errorf("h=%d negative pane: game=%d log=%d", h, l.Game.H, l.Log.H)
 		}
-		if l.Log.X+l.Log.W > w {
-			t.Errorf("w=%d log overflows screen", w)
+		if l.Log.Y+l.Log.H > h-1 {
+			t.Errorf("h=%d log overruns into input bar", h)
 		}
 	}
 }

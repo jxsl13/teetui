@@ -111,11 +111,15 @@ func TestRaceField(t *testing.T) {
 }
 
 func TestComputeLayout(t *testing.T) {
-	l := Compute(120, 30)
+	l := Compute(120, 30, true, DefaultLogLines)
 	if l.Status.Y != 0 || l.Input.Y != 29 {
 		t.Errorf("status/input rows wrong: %d %d", l.Status.Y, l.Input.Y)
 	}
-	if l.Log.X != l.Game.W+1 {
-		t.Errorf("log x %d not right of game", l.Log.X)
+	// Vertical stack: log band is full width, directly above the input bar.
+	if l.Log.X != 0 || l.Log.W != 120 {
+		t.Errorf("log not full width: %+v", l.Log)
+	}
+	if l.Log.Y+l.Log.H != l.Input.Y {
+		t.Errorf("log not above input bar")
 	}
 }

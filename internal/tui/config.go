@@ -25,6 +25,7 @@ type Config struct {
 	Chillpw        bool     // auto rcon-login from the secrets file on connect (§T68)
 	PasswordFile   string   // chillpw secrets file (addr→password); never logged (§T68)
 	MaxFPS         int      // cap render repaints/sec; 0=unlimited (§T74)
+	LogLines       int      // log-band rows when the visual is on (§T88)
 }
 
 // NewConfig returns the default configuration (§T39/§T40/§T61 defaults).
@@ -35,9 +36,10 @@ func NewConfig() *Config {
 		TappedOutText:  "I'm currently tapped out (afk)",
 		AutoReply:      false,
 		AutoReplyMsg:   "%n (teetui auto reply)",
-		Chillpw:        false,         // opt-in: off until the user enables it (§V38)
-		PasswordFile:   "chillpw.txt", // under the config dir unless absolute
-		MaxFPS:         DefaultMaxFPS, // cap repaints (§T74); 0 = unlimited
+		Chillpw:        false,           // opt-in: off until the user enables it (§V38)
+		PasswordFile:   "chillpw.txt",   // under the config dir unless absolute
+		MaxFPS:         DefaultMaxFPS,   // cap repaints (§T74); 0 = unlimited
+		LogLines:       DefaultLogLines, // log-band rows when visual on (§T88)
 	}
 }
 

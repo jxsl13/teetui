@@ -34,6 +34,8 @@ Re-impl chillerbot-ux ncurses `terminalui` as Go terminal client on `github.com/
   NB: NONE of the above ships in teetui, but ALL are user-buildable via the hook API (C19) — teetui gives primitives, user supplies the behavior.
 - C19: EXTENSIBLE. teetui ! expose a stable hook/callback API (§I.extension) so users implement out-of-scope (§C18) behavior themselves WITHOUT patching core: in-process Go `Hook` (events + safe action ctx) + opt-in external command hooks (`~/.config/teetui/hooks/`). hook surface = teetui's existing twclient public API ONLY (V1/V2/V12) — ⊥ raw net/packet, ⊥ DoS/flood primitive. teetui ⊥ SHIP any §C18 feature nor any abusive hook; user-supplied hooks = user responsibility. a hook panic ⊥ crash teetui (recover+disable+log). hooks opt-in, none active by default.
 - C20: FPS-LIMIT. render repaint rate ! be cappable to a configurable max fps (`cl_max_fps` cvar + `-max-fps` flag; 0=unlimited) to throttle terminal CPU. PURE render-side throttle — ⊥ couple to tick rate (twclient stays 50Hz, C5); coalesce event/wake bursts into ≤ cap repaints, ALWAYS render the latest state (trailing-edge draw, ⊥ drop final frame); ⊥ stall input handling; ⊥ add per-frame heap alloc (V7). reuse tcell cell-diff (C3) so a no-change frame is cheap.
+- C21: MODULAR FEATURES (Caddy-v2 / image-stdlib style). EVERY chillerbot-ux-specific feature lives in its OWN package `features/<name>`, SELF-REGISTERS in `init()` via `feature.Register(...)` (← `caddy.RegisterModule` / `image.RegisterFormat`), implemented EXCLUSIVELY against the public Host API (§I.feature) — ⊥ import `internal/tui`, ⊥ reach core internals. CORE (`internal/tui`) = base client + Host impl + module registry + render/input loop ONLY; ⊥ contain chillerbot feature logic. `main.go` = ONE file: blank-imports every feature package + builds/starts the base client; adding a feature = new package + one import line; removing = delete the import. if the Host API can't express a feature → EXTEND the public API (⊥ leak core, ⊥ globals): API ! be SUFFICIENT for all current chillerbot features. shared non-feature logic (e.g. langparser) = plain library pkg imported by features. SAFETY infra stays core (send-pacing/spam-safe V37, own-echo dedupe V29, reconnect V25) — ⊥ optional. supersedes the §I "extension / hooks" surface (T69-71) → folded into `feature`.
+- C22: LOG-AT-BOTTOM LAYOUT. windows stack VERTICALLY (⊥ left/right split): status(top) → game/visual → log band → input-legend(bottom). log band sits DIRECTLY above the input-legend bar; the visual render sits ABOVE the logs and, when ON, shrinks the log band to a small configurable strip (pushing older lines below the viewport). visual ON → log band height = clamp(`cl_log_lines` [+`-log-lines`], 1, ⌊h/2⌋), DEFAULT 10; the game fills the body above the band. visual OFF → logs fill the entire body. logs ⊥ EVER exceed ⌊h/2⌋ of terminal height when visual on (cap). recompute from live `h` on resize (C17). supersedes the §C17/§T57 left/right split + §I.windows game-left/log-right.
 
 ## §I — interfaces
 
@@ -84,10 +86,11 @@ packet.PlayerInput{...}  // movement/aim/jump/hook/fire/weapon
 ```
 
 ### tui windows (← chillerbot terminalui.h CWindowInfo + g_GameWindow)
-- game window: ASCII map + tees, camera on local tee (§I.render).
-- log window: chat/console/server-msg scrollback.
-- info window: status bar — input mode, server, race time, ping, fps.
-- input window: textbox + cursor + tab-completion preview (grey) + reverse-i-search prompt.
+LAYOUT = VERTICAL STACK, top→bottom (C22, supersedes old left/right split): status(top) / game-visual / log band / input-legend(bottom). logs sit DIRECTLY above the input-legend bar; the visual render sits ABOVE the logs.
+- info window: status bar — input mode, server, race time, ping, fps. TOP row.
+- game window: ASCII map + tees, camera on local tee (§I.render). FULL-WIDTH, between status and the log band, shown when visual on; pushes the log band down to its configured size.
+- log window: chat/console/server-msg scrollback. FULL-WIDTH band just above the input-legend. visual ON → `cl_log_lines` rows (default 10, capped ⌊h/2⌋); visual OFF → fills the whole body.
+- input window: textbox + cursor + tab-completion preview (grey) + reverse-i-search prompt; doubles as the key-legend bar. BOTTOM row.
 - scoreboard (toggle): cols `score|name(20)|clan(20)`, per DDTeam.
 - server-browser list (toggle): from `master.FetchServerList`, searchable, select→connect.
 - help page (toggle). popup: MESSAGE | NOT_IMPORTANT | DISCONNECTED | WARNING.
@@ -173,6 +176,58 @@ extension.Register(name string, h Hook)     // in-process Go hook (compiled in)
 Hook surface = teetui's existing twclient public API ONLY — ⊥ raw packet/net/flood
 primitive (⊥ a DoS amplifier). User hooks run under USER responsibility.
 
+### feature modules (v2 — supersedes "extension / hooks" above, C21)
+Every chillerbot feature = a self-registering module (← Caddy v2 / image stdlib).
+The §I "extension / hooks" surface (Hook/HookCtx, T69-71) is FOLDED into this
+richer, sufficient API. external command hooks become `features/cmdhook`.
+```
+pkg github.com/jxsl13/teetui/feature        // public module SDK
+type Feature interface {
+  Name() string                              // unique id (← ModuleInfo.ID / format name)
+  Provision(Host) error                      // declare config/actions/status, look up deps
+  Hooks                                       // embed NopFeature for unused events:
+}                                             //  OnConnect/OnDisconnect/OnChat(→suppress)/
+                                              //  OnBroadcast/OnServerMsg/OnKill/OnTick/OnKey(→handled)
+feature.Register(Feature)                     // called in each feature pkg init()
+feature.Registered() []Feature
+
+type Host interface {                          // the SUFFICIENT capability surface
+  // actions (safe twclient API only, V1/V12 — no raw net/DoS, V39)
+  SendChat(msg string, team bool); Do(client.Action) error; Log(style, msg string)
+  // state
+  Roster() []client.PlayerState; Tick() (client.TickState, bool)
+  PlayerName() string; PlayerClan() string; Server() string
+  // config: each feature OWNS its cvars (declared at Provision, V46)
+  DefineConfig(name, def, help string); Config(name string) (string, bool)
+  // outgoing-chat interception chain (for !commands / silent-chat, returns edited+send)
+  OnSendChat(func(msg string, team bool) (out string, send bool))
+  // named, REBINDABLE actions (respect keymap, V19) + default key (for H, etc.)
+  DefineAction(name, defaultKey, help string, run func())
+  // status-bar / HUD contributions (for cl_show_last_ping, coords, …)
+  AddStatusField(func() string)
+  // render contributions (warlist name coloring into scoreboard/nameplate)
+  AddNameStyle(func(name, clan string) (Style, bool))
+  // cross-feature services (← caddy ctx.App): a feature Provides, others Lookup
+  Provide(name string, svc any); Lookup(name string) (any, bool)
+}
+```
+A feature panic in Provision/hook ⊥ crash core (recover+disable+log, V40/V47).
+`main.go` (sole feature wiring):
+```
+import (
+  "github.com/jxsl13/teetui/internal/tui"
+  _ "github.com/jxsl13/teetui/features/warlist"
+  _ "github.com/jxsl13/teetui/features/replytoping"
+  _ "github.com/jxsl13/teetui/features/chatquery"
+  _ "github.com/jxsl13/teetui/features/chatfilter"
+  _ "github.com/jxsl13/teetui/features/responders"
+  _ "github.com/jxsl13/teetui/features/lastping"
+  _ "github.com/jxsl13/teetui/features/chillpw"
+  _ "github.com/jxsl13/teetui/features/cmdhook"
+)
+func main(){ tui.Main() }   // base client provisions all feature.Registered()
+```
+
 ## §V — invariants
 
 - V1: all server comms via `twclient` pub API only. ⊥ import net6/net7/network/packer from teetui. (C2)
@@ -217,6 +272,14 @@ primitive (⊥ a DoS amplifier). User hooks run under USER responsibility.
 - V40: a hook (Go or external) that panics / errors / times out ⊥ crash or hang teetui — recovered, logged, that hook disabled for the session; core UI continues. (C19)
 - V41: hooks opt-in — none active by default; §C18 out-of-scope features ⊥ shipped by teetui but ARE implementable via the hook API; teetui ships primitives, ⊥ policy, ⊥ any abusive hook. (C18/C19)
 - V42: render repaint capped at `cl_max_fps` (0=unlimited) — actual repaints/sec ⊥ exceed cap under any event/wake burst; coalesced draws ALWAYS converge to the latest state (trailing draw, ⊥ stale final frame); throttle ⊥ block input/tick goroutines, ⊥ per-frame alloc (V7); cap=0 → behaves exactly as today (every event draws). (C20)
+- V43: import isolation — `internal/tui` (core) ⊥ import any `features/*`; `features/*` ⊥ import `internal/tui` — features depend ONLY on the public `feature` API + shared libs. enforced by a test scanning imports. (C21)
+- V44: behavior parity — extracting a feature into its package ⊥ change observed behavior; the migrated chillerbot features (reply/query/filter/responders/warlist/lastping/chillpw/cmdhook) reproduce their pre-refactor effect exactly (same tests pass, relocated). (C21)
+- V45: features self-register in `init()`; the active feature set = EXACTLY the packages blank-imported by `main.go`; `main.go` holds NO feature logic beyond imports + base-client start. (C21)
+- V46: each feature OWNS its cvars (DefineConfig), keybinds (DefineAction, rebindable per V19) and status fields at Provision; core declares NONE of them; duplicate cvar/action names detected at registration. (C21)
+- V47: Host API is sufficient + safe — a needed capability is added to the PUBLIC Host (⊥ core leak/global); action surface stays the twclient public API (no raw net/DoS, V39); a feature panic in Provision or any hook ⊥ crash core (recover+disable+log, extends V40). (C21)
+- V48: layout is a VERTICAL stack top→bottom: status / game-visual / log band / input-legend; logs ALWAYS render directly above the input-legend bar; ⊥ left/right split. (C22)
+- V49: visual ON → log band = clamp(`cl_log_lines`, 1, ⌊h/2⌋) rows (default 10), game fills the body above it; visual OFF → logs fill the whole body. log band ⊥ exceed ⌊h/2⌋ when visual on, for ANY h ≥ min (V32). (C22)
+- V50: layout recomputed from live terminal size each render (C17/V30); resize re-clamps the log band; min-size guard (V32) still wins below Wmin×Hmin. (C22)
 
 ## §T — tasks
 
@@ -295,6 +358,20 @@ T71|x|external command hooks (opt-in): run `~/.config/teetui/hooks/<event>` exec
 T72|x|docs: README "Extensibility / Hooks" — list §C18 out-of-scope features + HOW to build each via hooks (example Go hook + example external script), security note (user responsibility, no DoS primitive); credit chillerbot features as the inspiration|C19,V41,I.cli
 T73|x|render throttle: coalescing FPS cap — `frameLimiter` (pure: lastDraw+interval → drawNow|wait) + integrate in Run/draw so event/wake bursts repaint ≤ cl_max_fps, trailing-edge draw guarantees latest state; cap 0 = unlimited (today's behavior); ⊥ per-frame alloc|C20,V42,V7
 T74|x|`cl_max_fps` config surface: `-max-fps` CLI flag + `cl_max_fps` cvar (console get/set), default 60, 0=unlimited; wire into frameLimiter (runtime cvar change applies live)|C20,V42,I.cli,I.config
+T75|.|public `feature` SDK pkg: Feature/NopFeature/Hooks interfaces + Host interface (actions/state/DefineConfig/OnSendChat/DefineAction/AddStatusField/AddNameStyle/Provide/Lookup) + Register/Registered; absorb extension event types (ChatEvent/KillEvent/Key/Style); panic-isolated dispatch (V47); table-tested|C21,V43,V47,I.feature
+T76|.|core Host impl + module registry in `internal/tui`: at startup Provision all `feature.Registered()` (dup name/cvar/action detection V46), dispatch every event to features (suppress/handled compose), run OnSendChat chain on outgoing chat, expose DefineConfig→cvar store, DefineAction→keymap, AddStatusField→status bar, AddNameStyle→scoreboard, Provide/Lookup service registry; base client has ZERO feature logic|C21,V44,V46,V47
+T77|.|shared `lang` library pkg: move langparser (findWord/isGreeting/…/question classifiers) out of core into an importable lib for features (⊥ a feature itself)|C21,V43
+T78|.|feature `features/warlist`: warlist store + `!war/!peace/!team/!del/!reason/!search/!create/!addreason/!unfriend` (+clan) via OnSendChat + scoreboard/nameplate coloring via AddNameStyle + auto-reload + own cvars (cl_silent_chat_commands, cl_war_list_auto_reload); Provides "warlist" service|C21,V44,V14
+T79|.|feature `features/replytoping`: H DefineAction → composeReply (lang lib smalltalk/greeting/no-context) over a last-ping queue; reads PlayerName via Host|C21,V44,V33
+T80|.|feature `features/chatquery`: war-status/where/os/list answers; Lookup("warlist") for relations+reasons; uses Roster/Tick/PlayerClan from Host|C21,V44,V34
+T81|.|feature `features/chatfilter`: incoming spam/insult/user filters via OnChat suppress; own cvars (cl_chat_spam_filter[_insults]) + console addfilter/listfilter/delfilter via DefineAction/commands|C21,V44,V36
+T82|.|feature `features/responders`: tapped-out (cl_tapped_out_message[_text]) + auto-reply (cl_auto_reply[_msg]) on ping; own cvars; rate-limited; reads PlayerName|C21,V44,V33
+T83|.|feature `features/lastping`: 16-deep ping queue + AddStatusField (cl_show_last_ping); Provides "pings" for replytoping (or replytoping owns queue + Provides)|C21,V44,V35
+T84|.|feature `features/chillpw`: opt-in rcon auto-login from secrets file on OnConnect; own cvars (cl_chillpw, cl_password_file); secret never logged|C21,V44,V38
+T85|.|feature `features/cmdhook`: external command hooks (~/.config/teetui/hooks/<event>) re-expressed as a feature on the new Host API (replaces T71 core wiring)|C21,V44,V40
+T86|.|`main.go` single-file: blank-import all feature packages + `tui.Main()`; STRIP feature logic from core/main; + import-isolation guard test (V43: ⊥ core↔features import) + parity check (V44: migrated feature tests pass in their pkgs)|C21,V43,V45,V44
+T87|x|layout redesign → vertical stack: rewrite `Compute` (status top / game / log band / input bottom, full-width, ⊥ left/right); logBandHeight fn (visual on → clamp(cfg.LogLines,1,⌊h/2⌋); off → full body); rewire `draw()` (game above band, logs above legend); update layout tests (responsive + cap + resize)|C22,V48,V49,V50,I.windows
+T88|.|`cl_log_lines` config (default 10) + `-log-lines` flag: log-band rows when visual on, clamped ⌊h/2⌋ at render; runtime cvar change applies live|C22,V49,I.cli,I.config
 
 ## §B — bugs
 

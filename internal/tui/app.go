@@ -1405,22 +1405,21 @@ func (a *App) draw() {
 		return
 	}
 
-	lay := Compute(w, h)
+	lay := Compute(w, h, a.visual, a.cfg.LogLines)
 	st, have := a.state.Get()
 
-	if a.visual {
+	// Visual on → game fills the body above the log band; off → the log band
+	// fills the whole body (no game), so there is nothing to draw here (§C22).
+	if a.visual && lay.Game.H > 0 {
 		a.drawScene(lay.Game, st)
 		if a.scoreboard && have {
 			DrawScoreboard(a.scr, lay.Game, st, a.warlist)
 		}
-	} else {
-		drawStr(a.scr, lay.Game.X, lay.Game.Y, lay.Game.W, StyleSystem, "[visual off — press v]")
-	}
-
-	// While a join is in flight (no map/snapshot yet) show the indeterminate
-	// connecting / map-download indicator over the top of the game window (§T33).
-	if !a.connected.Load() {
-		drawStr(a.scr, lay.Game.X, lay.Game.Y, lay.Game.W, StyleSystem, connectingLine(a.drawFrame))
+		// While a join is in flight (no map/snapshot yet) show the indeterminate
+		// connecting / map-download indicator over the game window (§T33).
+		if !a.connected.Load() {
+			drawStr(a.scr, lay.Game.X, lay.Game.Y, lay.Game.W, StyleSystem, connectingLine(a.drawFrame))
+		}
 	}
 
 	for i, ln := range a.log.View(lay.Log.H) {

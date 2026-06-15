@@ -3,31 +3,23 @@ package tui
 // Rect is a window rectangle in screen cells.
 type Rect struct{ X, Y, W, H int }
 
-// Layout holds the computed window rectangles for one screen size. Mirrors the
-// chillerbot terminalui windows: a status bar, the game view, a message log and
-// the input line.
+// Layout holds the computed window rectangles for one screen size. Windows stack
+// VERTICALLY (§C22): a status bar on top, the full-width game/visual view, the
+// full-width log band, and the input/legend line at the bottom. The log band
+// sits directly above the input bar; the game sits above the log band.
 type Layout struct {
 	Status Rect // top row
-	Game   Rect // left body
-	Log    Rect // right body
-	Input  Rect // bottom row
+	Game   Rect // body above the log band (full width; H==0 when visual off)
+	Log    Rect // full-width log band, just above the input bar
+	Input  Rect // bottom row (input + key legend)
 }
 
-// Layout sizing guards. The game view takes ~2/3 of the width and SCALES with
-// the terminal — there is deliberately no fixed upper cap, so a larger terminal
-// renders more of the map at higher resolution (§C17/§V31; the old 64-tile
-// chillerbot frame is no longer a ceiling). The minimums keep both panes usable
-// on a narrow terminal: the log never drops below minLogW while the game can,
-// and the game never drops below minGameW while the log can.
-const (
-	minLogW  = 16
-	minGameW = 8
-)
+// DefaultLogLines is the log-band height (rows) when the visual is on (§C22/§T88).
+const DefaultLogLines = 10
 
-// Minimum usable terminal size. Below this the four-window layout cannot be
-// drawn legibly, so the UI degrades to a single "resize" notice (§V32/§C17)
-// instead of garbling. status(1) + input(1) + a few body rows, and enough
-// columns for a minimal game+log split.
+// Minimum usable terminal size. Below this the layout cannot be drawn legibly,
+// so the UI degrades to a single "resize" notice (§V32/§C17) instead of
+// garbling. status(1) + input(1) + a few body rows.
 const (
 	minTermW = 20
 	minTermH = 6
@@ -36,11 +28,36 @@ const (
 // tooSmall reports whether the terminal is below the minimum usable size (§V32).
 func tooSmall(w, h int) bool { return w < minTermW || h < minTermH }
 
-// Compute splits a w×h screen into the four windows from the CURRENT terminal
-// size — called every render so the UI tracks live resizes (§C17/§V30). The game
-// view takes ~2/3 of the width and grows with the terminal (no cap); the log
-// takes the remaining right column, clamped to a usable minimum.
-func Compute(w, h int) Layout {
+// logBandHeight returns the log-band row count for the current size (§C22/§V49).
+// With the visual on it is logLines, clamped to [1, ⌊h/2⌋] and to the body — so
+// logs never eat more than half the terminal and the game keeps the rest. With
+// the visual off the logs fill the whole body.
+func logBandHeight(h, bodyH int, visual bool, logLines int) int {
+	if !visual {
+		return bodyH
+	}
+	half := h / 2
+	n := logLines
+	if n < 1 {
+		n = 1
+	}
+	if n > half {
+		n = half
+	}
+	if n > bodyH {
+		n = bodyH
+	}
+	if n < 0 {
+		n = 0
+	}
+	return n
+}
+
+// Compute stacks a w×h screen into the four windows from the CURRENT terminal
+// size — called every render so the UI tracks live resizes (§C17/§V30/§C22). The
+// game/visual fills the body above the log band; the log band sits just above the
+// input bar, sized by logBandHeight.
+func Compute(w, h int, visual bool, logLines int) Layout {
 	if w < 1 {
 		w = 1
 	}
@@ -50,28 +67,15 @@ func Compute(w, h int) Layout {
 	bodyY := 1
 	bodyH := h - 2 // rows between status (top) and input (bottom)
 
-	gameW := w * 2 / 3
-	// Keep the log readable: on a wide split scale the game down so the log gets
-	// at least minLogW (when the terminal is wide enough to afford it).
-	if w-1-gameW < minLogW {
-		gameW = w - 1 - minLogW
-	}
-	// Keep some game view: on a narrow terminal scale the log down instead.
-	if gameW < minGameW {
-		gameW = minGameW
-	}
-	if gameW > w {
-		gameW = w
-	}
-	logX := gameW + 1
-	logW := w - logX
-	if logW < 0 {
-		logW = 0
+	logH := logBandHeight(h, bodyH, visual, logLines)
+	gameH := bodyH - logH
+	if gameH < 0 {
+		gameH = 0
 	}
 	return Layout{
 		Status: Rect{0, 0, w, 1},
-		Game:   Rect{0, bodyY, gameW, bodyH},
-		Log:    Rect{logX, bodyY, logW, bodyH},
+		Game:   Rect{0, bodyY, w, gameH},
+		Log:    Rect{0, bodyY + gameH, w, logH},
 		Input:  Rect{0, h - 1, w, 1},
 	}
 }
