@@ -107,6 +107,21 @@ func (b *Browser) SetEntries(entries []master.ServerEntry) {
 	b.refilter()
 }
 
+// lanServerRow maps a LAN-scanned server (master.ScanLAN result) to a serverRow
+// for the LAN tab. Pure; mirrors SetEntries' master.ServerEntry mapping (§T51).
+func lanServerRow(s master.LANServer) serverRow {
+	return serverRow{
+		Addr:       s.Addr,
+		Name:       s.Info.Name,
+		GameType:   s.Info.GameType,
+		MapName:    s.Info.MapName,
+		Players:    s.Info.NumClients,
+		MaxPlayers: s.Info.MaxClients,
+		Passworded: s.Info.Passworded,
+		Version:    s.Version,
+	}
+}
+
 // refilter rebuilds the visible slice from tab + search and clamps selection.
 func (b *Browser) refilter() {
 	b.mu.Lock()

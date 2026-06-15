@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -819,34 +818,27 @@ func (a *App) handleBrowser(ev *tcell.EventKey) {
 	}
 }
 
-// maybeScanLAN probes the local machine for servers when the LAN tab is active
-// (§T45). Best-effort connless queries on common local ports.
+// maybeScanLAN runs a real LAN broadcast scan when the LAN tab is active,
+// discovering 0.6 and 0.7 servers on the local subnet via twclient's
+// master.ScanLAN and mapping the results into the LAN source (§T51). Empty
+// results clear the LAN tab gracefully.
 func (a *App) maybeScanLAN() {
 	if a.browser.Tab() != tabLAN {
 		return
 	}
 	a.browser.SetLoading(true)
 	go func() {
-		ports := []int{8303, 8304, 8305, 8306, 8307}
-		vers := []packet.Version{packet.Version06, packet.Version07}
-		m := master.New()
-		var rows []serverRow
-		for _, port := range ports {
-			addr := fmt.Sprintf("127.0.0.1:%d", port)
-			for _, v := range vers {
-				ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
-				info, err := m.QueryServerInfo(ctx, v, addr)
-				cancel()
-				if err != nil {
-					continue
-				}
-				rows = append(rows, serverRow{
-					Addr: addr, Name: info.Name, GameType: info.GameType,
-					MapName: info.MapName, Players: info.NumClients,
-					MaxPlayers: info.MaxClients, Passworded: info.Passworded, Version: v,
-				})
-				break // one version per port is enough
-			}
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		servers, err := master.New().ScanLAN(ctx, master.WithScanTimeout(2500*time.Millisecond))
+		if err != nil {
+			a.browser.SetError(err.Error())
+			a.wake()
+			return
+		}
+		rows := make([]serverRow, 0, len(servers))
+		for _, s := range servers {
+			rows = append(rows, lanServerRow(s))
 		}
 		a.browser.SetLAN(rows)
 		a.wake()

@@ -115,3 +115,33 @@ func TestDrawBrowserNoPanic(t *testing.T) {
 	lb.SetLoading(true)
 	DrawBrowser(scr, 100, 30, lb)
 }
+
+// TestLANServerRow checks the master.ScanLAN → serverRow mapping (§T51).
+func TestLANServerRow(t *testing.T) {
+	s := master.LANServer{
+		Addr:    "192.168.1.5:8303",
+		Version: packet.Version07,
+		Info: packet.ServerInfo{
+			Name:       "LAN box",
+			GameType:   "DM",
+			MapName:    "dm1",
+			NumClients: 3,
+			MaxClients: 16,
+			Passworded: true,
+		},
+	}
+	got := lanServerRow(s)
+	want := serverRow{
+		Addr:       "192.168.1.5:8303",
+		Name:       "LAN box",
+		GameType:   "DM",
+		MapName:    "dm1",
+		Players:    3,
+		MaxPlayers: 16,
+		Passworded: true,
+		Version:    packet.Version07,
+	}
+	if got != want {
+		t.Fatalf("lanServerRow mismatch:\n got %+v\nwant %+v", got, want)
+	}
+}
