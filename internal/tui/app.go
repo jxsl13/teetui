@@ -31,12 +31,13 @@ const (
 // on the main loop. Fields written from twclient callback goroutines (popup,
 // connected) are guarded (atomic / mu) so there is no data race (§V4, §V8).
 type App struct {
-	scr     tcell.Screen
-	state   *State
-	input   *InputController
-	log     *Log
-	server  string
-	version packet.Version // protocol of the current/last Join, for reconnect (§T50)
+	scr            tcell.Screen
+	state          *State
+	input          *InputController
+	log            *Log
+	server         string
+	version        packet.Version // protocol of the current/last Join, for reconnect (§T50)
+	connectTimeout time.Duration  // handshake timeout (0 = DefaultConnectTimeout, §T54)
 
 	cli       atomic.Pointer[client.Client]
 	connected atomic.Bool
@@ -882,10 +883,12 @@ func (a *App) Join(addr string, ver packet.Version) {
 		// us out (§V25, §B4). The handshake is bounded by a watchdog that cancels
 		// fctx ONLY while still connecting; once connected it never fires.
 		stop := make(chan struct{})
+		var timedOut atomic.Bool
 		go func() {
 			select {
-			case <-time.After(connectTimeout):
+			case <-time.After(a.connTimeout()):
 				if !a.connected.Load() {
+					timedOut.Store(true)
 					fcancel() // abort a stuck handshake (does NOT cap a live session)
 				}
 			case <-stop:
@@ -893,7 +896,14 @@ func (a *App) Join(addr string, ver packet.Version) {
 		}()
 		if err := c.Connect(fctx); err != nil {
 			close(stop)
-			a.log.Addf(StyleSelf, "%s", connectFailMsg(addr, ver, err))
+			// Distinguish "we gave up after the timeout" from a real protocol
+			// error, so a slow-but-reachable server reads as a retryable timeout
+			// rather than a scary raw "context canceled" (§V28/§B7).
+			if timedOut.Load() {
+				a.log.Addf(StyleSelf, "%s", connectTimeoutMsg(addr, ver, a.connTimeout()))
+			} else {
+				a.log.Addf(StyleSelf, "%s", connectFailMsg(addr, ver, err))
+			}
 			a.log.Addf(StyleSystem, "press R to reconnect")
 			fcancel()
 			a.wake()
@@ -907,9 +917,23 @@ func (a *App) Join(addr string, ver packet.Version) {
 	}()
 }
 
-// connectTimeout bounds the handshake; after it the watchdog aborts a still-
-// pending connect (§T52). It does NOT cap the live session (§V25).
-const connectTimeout = 12 * time.Second
+// DefaultConnectTimeout bounds the handshake (login + map download); after it
+// the watchdog aborts a still-pending connect (§T52). It does NOT cap the live
+// session (§V25). Generous by default so a real server's map download over a
+// real network is not killed mid-handshake (§V28/§B7); override with
+// -connect-timeout.
+const DefaultConnectTimeout = 30 * time.Second
+
+// connTimeout returns the configured handshake timeout, or the default.
+func (a *App) connTimeout() time.Duration {
+	if a.connectTimeout > 0 {
+		return a.connectTimeout
+	}
+	return DefaultConnectTimeout
+}
+
+// SetConnectTimeout overrides the handshake timeout (0 = default).
+func (a *App) SetConnectTimeout(d time.Duration) { a.connectTimeout = d }
 
 // reconnect re-runs Join against the current server using the protocol version
 // recorded by the last Join, so the user can retry after a connect failure

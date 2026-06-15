@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/jxsl13/twclient/packet"
 )
@@ -27,6 +28,14 @@ func versionLabel(ver packet.Version) string {
 func connectFailMsg(addr string, ver packet.Version, err error) string {
 	return fmt.Sprintf("connect failed: %s (%s): %v — check address, -version, and network",
 		addr, versionLabel(ver), err)
+}
+
+// connectTimeoutMsg is the log line when the handshake watchdog gives up after
+// the configured timeout — distinct from a hard protocol error so a slow or
+// unreachable server reads as retryable, not broken (§V28/§B7).
+func connectTimeoutMsg(addr string, ver packet.Version, d time.Duration) string {
+	return fmt.Sprintf("connect timed out after %s: %s (%s) — server slow or unreachable (check -version, raise -connect-timeout)",
+		d, addr, versionLabel(ver))
 }
 
 // spinnerFrames cycles a small ASCII spinner for indeterminate progress.

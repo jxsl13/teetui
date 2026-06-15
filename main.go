@@ -22,11 +22,12 @@ func main() {
 
 func run() error {
 	var (
-		server  = flag.String("server", "127.0.0.1:8303", "server address host:port")
-		name    = flag.String("name", "nameless tee", "player name")
-		clan    = flag.String("clan", "", "player clan")
-		skin    = flag.String("skin", "default", "player skin")
-		version = flag.String("version", "0.6", "protocol version: 0.6 or 0.7")
+		server   = flag.String("server", "127.0.0.1:8303", "server address host:port")
+		name     = flag.String("name", "nameless tee", "player name")
+		clan     = flag.String("clan", "", "player clan")
+		skin     = flag.String("skin", "default", "player skin")
+		version  = flag.String("version", "0.6", "protocol version: 0.6 or 0.7")
+		connTime = flag.Duration("connect-timeout", tui.DefaultConnectTimeout, "handshake timeout (login + map download)")
 	)
 	flag.Parse()
 
@@ -43,6 +44,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	app.SetConnectTimeout(*connTime)
 
 	// Client factory: all comms go through twclient (render via Observer, input
 	// via Controller, chat/server/rcon/disconnect via callbacks — §V1, §V2,
