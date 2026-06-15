@@ -24,6 +24,18 @@ const (
 	minGameW = 8
 )
 
+// Minimum usable terminal size. Below this the four-window layout cannot be
+// drawn legibly, so the UI degrades to a single "resize" notice (§V32/§C17)
+// instead of garbling. status(1) + input(1) + a few body rows, and enough
+// columns for a minimal game+log split.
+const (
+	minTermW = 20
+	minTermH = 6
+)
+
+// tooSmall reports whether the terminal is below the minimum usable size (§V32).
+func tooSmall(w, h int) bool { return w < minTermW || h < minTermH }
+
 // Compute splits a w×h screen into the four windows from the CURRENT terminal
 // size — called every render so the UI tracks live resizes (§C17/§V30). The game
 // view takes ~2/3 of the width and grows with the terminal (no cap); the log

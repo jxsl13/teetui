@@ -34,6 +34,22 @@ func drawStr(s tcell.Screen, x, y, maxW int, style tcell.Style, str string) int 
 	return cx - x
 }
 
+// drawTooSmall renders the single "terminal too small" notice shown when the
+// terminal is below the minimum usable size (§V32). It centers the message and
+// clamps to the top-left on a truly tiny screen so it never draws out of bounds.
+func drawTooSmall(s tcell.Screen, w, h int) {
+	msg := fmt.Sprintf("terminal too small — resize to >= %dx%d", minTermW, minTermH)
+	y := h / 2
+	x := (w - runewidth.StringWidth(msg)) / 2
+	if x < 0 {
+		x = 0
+	}
+	if y < 0 {
+		y = 0
+	}
+	drawStr(s, x, y, w, StyleSystem, msg)
+}
+
 // padCol truncates s to w display columns and right-pads with spaces, so table
 // columns line up regardless of wide/utf8 runes (§V6).
 func padCol(s string, w int) string {

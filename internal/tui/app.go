@@ -1104,6 +1104,14 @@ func (a *App) draw() {
 	a.drawFrame++
 	w, h := a.scr.Size()
 
+	// Below the minimum usable size, degrade to a single resize notice rather
+	// than garbling the layout; growing back restores the full UI (§V32/§C17).
+	if tooSmall(w, h) {
+		drawTooSmall(a.scr, w, h)
+		a.scr.Show()
+		return
+	}
+
 	if a.mode == modeBrowser {
 		DrawBrowser(a.scr, w, h, a.browser)
 		a.mu.Lock()
