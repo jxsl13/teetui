@@ -194,7 +194,7 @@ T21|x|warlist store (simple): war/peace/team/del + scoreboard name coloring + pe
 T22|x|chat commands `!war/!peace/!team/!del/!help` parse + apply via parseChatCommand, `cl_silent_chat_commands` default on (← chatcommand.cpp)|V14
 T23|x|auto-reply: `H` reply-to-last-ping + known-phrase table; ping detect via name in OnChat (← chathelper/replytoping.cpp)|I.twclient
 T24|x|warlist advanced mode: folders, multi-name bundle, war reasons, clan war (← warlist_commands_advanced.cpp)|V14
-T25|~|disconnect/kick handling: OnDisconnect→DISCONNECTED popup + wake DONE; auto-reconnect status UI TODO|V11
+T25|x|disconnect/kick handling: OnDisconnect→DISCONNECTED popup + wake + auto-reconnect (attempt counter, "reconnecting #N" status, suppressed on quit) DONE|V11
 T26|x|bench render hot path; prove zero steady alloc; optimize proven hot cells|C7,V7
 T27|x|cross-OS smoke: build+run Linux/Windows(pwsh)/macOS terminals, color + glyph check|C3,C4,V5,V6
 T28|x|help page content + key cheatsheet, `?`/Esc toggle, always escapable (← RenderHelpPage)|I.windows,V17

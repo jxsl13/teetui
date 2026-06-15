@@ -28,12 +28,32 @@ func raceField(rt client.RaceTime) string {
 	}
 }
 
-// statusText builds the status-bar line: input mode, server, race, tick.
-func statusText(mode, server string, connected bool, st client.TickState, have bool) string {
-	conn := "connecting"
-	if connected {
-		conn = "connected"
+// connStatus is the connection state shown in the status bar: connected,
+// (auto-)reconnecting with an attempt count, or the initial connecting state
+// (§T25).
+type connStatus struct {
+	connected    bool
+	reconnecting bool
+	attempt      int
+}
+
+// connLabel renders the connection field of the status bar (§T25). An active
+// auto-reconnect reads "reconnecting #N" so the user sees progress rather than a
+// frozen "connecting".
+func connLabel(cs connStatus) string {
+	switch {
+	case cs.connected:
+		return "connected"
+	case cs.reconnecting:
+		return fmt.Sprintf("reconnecting #%d", cs.attempt)
+	default:
+		return "connecting"
 	}
+}
+
+// statusText builds the status-bar line: input mode, server, race, tick.
+func statusText(mode, server string, cs connStatus, st client.TickState, have bool) string {
+	conn := connLabel(cs)
 	race := "-"
 	tick := 0
 	if have {

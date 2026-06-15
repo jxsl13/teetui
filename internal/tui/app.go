@@ -39,8 +39,10 @@ type App struct {
 	version        packet.Version // protocol of the current/last Join, for reconnect (§T50)
 	connectTimeout time.Duration  // handshake timeout (0 = DefaultConnectTimeout, §T54)
 
-	cli       atomic.Pointer[client.Client]
-	connected atomic.Bool
+	cli           atomic.Pointer[client.Client]
+	connected     atomic.Bool
+	reconnecting  atomic.Bool  // an auto-reconnect is in flight (§T25)
+	reconnAttempt atomic.Int32 // auto-reconnect attempt counter (§T25)
 
 	mode     int
 	line     TextInput
@@ -101,22 +103,22 @@ func NewApp(server string, state *State, input *InputController, log *Log) (*App
 	scr.Clear()
 
 	a := &App{
-		scr:            scr,
-		state:          state,
-		input:          input,
-		log:            log,
-		server:         server,
-		histAll:        NewHistory(64),
-		histTeam:       NewHistory(64),
-		histCon:        NewHistory(64),
-		histRcon:       NewHistory(64),
-		browser:        NewBrowser(),
-		warlist:        NewWarlist(),
-		keymap:         DefaultKeymap(),
-		cfg:            NewConfig(),
-		visual:         true,
-		popup:          greetingPopup(), // startup greeting (§T31)
-		quit:           make(chan struct{}),
+		scr:      scr,
+		state:    state,
+		input:    input,
+		log:      log,
+		server:   server,
+		histAll:  NewHistory(64),
+		histTeam: NewHistory(64),
+		histCon:  NewHistory(64),
+		histRcon: NewHistory(64),
+		browser:  NewBrowser(),
+		warlist:  NewWarlist(),
+		keymap:   DefaultKeymap(),
+		cfg:      NewConfig(),
+		visual:   true,
+		popup:    greetingPopup(), // startup greeting (§T31)
+		quit:     make(chan struct{}),
 	}
 	a.loadHistory()
 	if p, err := configDir(); err == nil {
@@ -208,14 +210,42 @@ func (a *App) SetDialer(fn func(addr string, ver packet.Version) *client.Client)
 // SetConnected updates the status indicator.
 func (a *App) SetConnected(b bool) { a.connected.Store(b) }
 
-// ShowDisconnect raises the disconnect popup. Safe to call from a twclient
-// callback goroutine (§V4); it wakes the render loop (§T19/§T25).
+// ShowDisconnect raises the disconnect popup and kicks off an auto-reconnect to
+// the same server, surfacing "reconnecting #N" in the status bar (§T25/§V11).
+// Safe to call from a twclient callback goroutine (§V4); it wakes the render
+// loop. A user-initiated quit suppresses the reconnect.
 func (a *App) ShowDisconnect(reason string) {
 	a.connected.Store(false)
+	a.camera.reset() // next session snaps the camera, no slide across the map
 	a.mu.Lock()
 	a.popup = disconnectPopup(reason)
 	a.mu.Unlock()
 	a.wake()
+
+	if a.quitting() {
+		return
+	}
+	go a.reconnect()
+}
+
+// quitting reports whether Stop has been called (the quit channel is closed), so
+// background goroutines (auto-reconnect) do not fight a shutdown.
+func (a *App) quitting() bool {
+	select {
+	case <-a.quit:
+		return true
+	default:
+		return false
+	}
+}
+
+// connStatus snapshots the connection state for the status bar (§T25).
+func (a *App) connStatus() connStatus {
+	return connStatus{
+		connected:    a.connected.Load(),
+		reconnecting: a.reconnecting.Load(),
+		attempt:      int(a.reconnAttempt.Load()),
+	}
 }
 
 // wake nudges the event loop so background state changes redraw promptly.
@@ -964,12 +994,15 @@ func (a *App) Join(addr string, ver packet.Version) {
 				a.log.Addf(StyleSelf, "%s", connectFailMsg(addr, ver, err))
 			}
 			a.log.Addf(StyleSystem, "press R to reconnect")
+			a.reconnecting.Store(false) // attempt finished (failed) — stop the spinner
 			fcancel()
 			a.wake()
 			return
 		}
 		a.SetConnected(true)
-		close(stop) // connected → watchdog must not cancel the live session
+		a.reconnecting.Store(false)
+		a.reconnAttempt.Store(0) // a clean connection resets the attempt count
+		close(stop)              // connected → watchdog must not cancel the live session
 		a.log.Addf(StyleSystem, "connected.")
 		go c.RunFrontends(fctx) // drive observer (render) + controller (input)
 		a.wake()
@@ -995,12 +1028,17 @@ func (a *App) connTimeout() time.Duration {
 func (a *App) SetConnectTimeout(d time.Duration) { a.connectTimeout = d }
 
 // reconnect re-runs Join against the current server using the protocol version
-// recorded by the last Join, so the user can retry after a connect failure
-// without re-typing flags (§T50/§V24).
+// recorded by the last Join, so the user (R key) or an auto-reconnect after a
+// drop can retry without re-typing flags (§T50/§V24/§T25). It bumps the attempt
+// counter and flags the reconnecting state for the status bar; Join clears both
+// on a terminal outcome.
 func (a *App) reconnect() {
 	if a.server == "" {
 		return
 	}
+	a.reconnAttempt.Add(1)
+	a.reconnecting.Store(true)
+	a.wake()
 	a.Join(a.server, a.version)
 }
 
@@ -1075,7 +1113,7 @@ func (a *App) draw() {
 		drawStr(a.scr, lay.Log.X, lay.Log.Y+i, lay.Log.W, ln.Style, ln.Text)
 	}
 
-	status := statusText(a.modeLabel(), a.server, a.connected.Load(), st, have)
+	status := statusText(a.modeLabel(), a.server, a.connStatus(), st, have)
 	for x := 0; x < lay.Status.W; x++ {
 		a.scr.SetContent(x, lay.Status.Y, ' ', nil, StyleStatus)
 	}
