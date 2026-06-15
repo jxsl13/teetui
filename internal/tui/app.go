@@ -1208,8 +1208,51 @@ func (a *App) Join(addr string, ver packet.Version) {
 		close(stop)              // connected → watchdog must not cancel the live session
 		a.log.Addf(StyleSystem, "connected.")
 		go c.RunFrontends(fctx) // drive observer (render) + controller (input)
+		go a.chillpwLogin(addr) // opt-in rcon auto-login (§T68)
 		a.wake()
 	}()
+}
+
+// chillpwLogin performs an opt-in rcon auto-login using a password from the
+// secrets file matched to the server addr (§T68/§V38). The secret is NEVER
+// logged — only the fact of an attempt and its success/failure. Off unless
+// cl_chillpw is set and the file holds an entry for this server.
+func (a *App) chillpwLogin(addr string) {
+	cs := a.cfgSnap()
+	if !cs.Chillpw {
+		return
+	}
+	path := cs.PasswordFile
+	if path == "" {
+		return
+	}
+	if !filepath.IsAbs(path) {
+		if dir, err := configDir(); err == nil {
+			path = filepath.Join(dir, path)
+		}
+	}
+	m, err := loadPasswords(path)
+	if err != nil {
+		a.log.Addf(StyleSelf, "chillpw: cannot read secrets file")
+		return
+	}
+	pw, ok := lookupPassword(m, addr)
+	if !ok {
+		return // no secret for this server — nothing to do
+	}
+	c := a.cli.Load()
+	if c == nil {
+		return
+	}
+	a.log.Addf(StyleSystem, "chillpw: rcon auto-login for %s", addr)
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+	if err := c.RconLogin(ctx, pw); err != nil {
+		a.log.Addf(StyleSelf, "chillpw: rcon login failed") // never log the secret
+		return
+	}
+	a.log.Addf(StyleSystem, "chillpw: rcon authenticated")
+	a.wake()
 }
 
 // DefaultConnectTimeout bounds the handshake (login + map download); after it
