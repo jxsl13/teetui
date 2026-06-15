@@ -262,14 +262,30 @@ func (a *App) handle(ev tcell.Event) {
 	}
 }
 
-// handlePopup closes any popup on Enter/Esc (always escapable, §V17).
+// handlePopup closes any popup on Enter/Esc (always escapable, §V17). The
+// greeting popup also honors its advertised hint keys (B → browser, ? → help)
+// instead of swallowing them (§V21, §B1).
 func (a *App) handlePopup(ev *tcell.EventKey) {
-	switch ev.Key() {
-	case tcell.KeyEnter, tcell.KeyEscape:
+	a.mu.Lock()
+	greeting := a.popup.Kind == popupGreeting
+	a.mu.Unlock()
+
+	if ev.Key() == tcell.KeyEnter || ev.Key() == tcell.KeyEscape {
 		a.closePopup()
-	default:
-		if ev.Rune() == '?' || ev.Rune() == 'q' {
-			a.closePopup()
+		return
+	}
+	switch ev.Rune() {
+	case 'q':
+		a.closePopup()
+	case '?':
+		a.closePopup()
+		if greeting {
+			a.help = true
+		}
+	case 'b', 'B':
+		a.closePopup()
+		if greeting {
+			a.openBrowser()
 		}
 	}
 }
