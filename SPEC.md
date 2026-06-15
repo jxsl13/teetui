@@ -33,12 +33,13 @@ Re-impl chillerbot-ux ncurses `terminalui` as Go terminal client on `github.com/
   - misc low-value: `cl_finish_rename`, `cl_change_tile_notification`, `cl_show_last_killer`, `cl_always_reconnect`/`cl_reconnect_when_empty` (T25 already covers drop→reconnect).
   NB: NONE of the above ships in teetui, but ALL are user-buildable via the hook API (C19) — teetui gives primitives, user supplies the behavior.
 - C19: EXTENSIBLE. teetui ! expose a stable hook/callback API (§I.extension) so users implement out-of-scope (§C18) behavior themselves WITHOUT patching core: in-process Go `Hook` (events + safe action ctx) + opt-in external command hooks (`~/.config/teetui/hooks/`). hook surface = teetui's existing twclient public API ONLY (V1/V2/V12) — ⊥ raw net/packet, ⊥ DoS/flood primitive. teetui ⊥ SHIP any §C18 feature nor any abusive hook; user-supplied hooks = user responsibility. a hook panic ⊥ crash teetui (recover+disable+log). hooks opt-in, none active by default.
+- C20: FPS-LIMIT. render repaint rate ! be cappable to a configurable max fps (`cl_max_fps` cvar + `-max-fps` flag; 0=unlimited) to throttle terminal CPU. PURE render-side throttle — ⊥ couple to tick rate (twclient stays 50Hz, C5); coalesce event/wake bursts into ≤ cap repaints, ALWAYS render the latest state (trailing-edge draw, ⊥ drop final frame); ⊥ stall input handling; ⊥ add per-frame heap alloc (V7). reuse tcell cell-diff (C3) so a no-change frame is cheap.
 
 ## §I — interfaces
 
 ### cli
 - cmd: `teetui [flags]` → opens TUI, connects.
-- flags (?final): `-server addr:port`, `-name`, `-clan`, `-skin`, `-version 0.6|0.7`, `-password`, `-no-color`, `-config path`.
+- flags (?final): `-server addr:port`, `-name`, `-clan`, `-skin`, `-version 0.6|0.7`, `-password`, `-no-color`, `-config path`, `-connect-timeout dur`, `-max-fps n` (0=unlimited, §T74).
 - env: NONE (C2).
 - config file: warlist dir + key history (mirror chillerbot `chillerbot/warlist/*`, `chillerbot/history/*`). path `~/.config/teetui`.
 - file: `README.md` — usage + ALL attributions/credits/references. ! credit chillerbot-ux (https://github.com/chillerbot/chillerbot-ux, orig author ChillerDragon, reference UX), DDNet (https://ddnet.org), Teeworlds (https://www.teeworlds.com), twclient (github.com/jxsl13/twclient), tcell (github.com/gdamore/tcell), go-runewidth. ! state licenses + that teetui = independent Go re-impl, not fork.
@@ -215,6 +216,7 @@ primitive (⊥ a DoS amplifier). User hooks run under USER responsibility.
 - V39: hook API stable+documented (§I.extension); hooks receive events + an action ctx limited to teetui's twclient public surface (V1/V2/V12) — ⊥ raw packet/net/flood, ⊥ DoS amplifier. registered hooks dispatched in deterministic order; OnChat suppress + OnKey handled composable (first true wins, recorded). (C19)
 - V40: a hook (Go or external) that panics / errors / times out ⊥ crash or hang teetui — recovered, logged, that hook disabled for the session; core UI continues. (C19)
 - V41: hooks opt-in — none active by default; §C18 out-of-scope features ⊥ shipped by teetui but ARE implementable via the hook API; teetui ships primitives, ⊥ policy, ⊥ any abusive hook. (C18/C19)
+- V42: render repaint capped at `cl_max_fps` (0=unlimited) — actual repaints/sec ⊥ exceed cap under any event/wake burst; coalesced draws ALWAYS converge to the latest state (trailing draw, ⊥ stale final frame); throttle ⊥ block input/tick goroutines, ⊥ per-frame alloc (V7); cap=0 → behaves exactly as today (every event draws). (C20)
 
 ## §T — tasks
 
@@ -291,6 +293,8 @@ T69|x|extension API pkg `extension`: `Hook` interface (OnConnect/OnDisconnect/On
 T70|x|wire hook dispatch into App event paths: chat/broadcast/servermsg/kill/tick/connect/disconnect/key call registered hooks in order; honor OnChat suppress (hide line) + OnKey handled (consume); ⊥ break core when no hooks|C19,V39,V41
 T71|x|external command hooks (opt-in): run `~/.config/teetui/hooks/<event>` executables w/ event JSON on stdin, parse stdout action lines (say/do), timeout-bounded, errors isolated (V40); off unless dir present|C19,V40,V41,I.config
 T72|x|docs: README "Extensibility / Hooks" — list §C18 out-of-scope features + HOW to build each via hooks (example Go hook + example external script), security note (user responsibility, no DoS primitive); credit chillerbot features as the inspiration|C19,V41,I.cli
+T73|x|render throttle: coalescing FPS cap — `frameLimiter` (pure: lastDraw+interval → drawNow|wait) + integrate in Run/draw so event/wake bursts repaint ≤ cl_max_fps, trailing-edge draw guarantees latest state; cap 0 = unlimited (today's behavior); ⊥ per-frame alloc|C20,V42,V7
+T74|x|`cl_max_fps` config surface: `-max-fps` CLI flag + `cl_max_fps` cvar (console get/set), default 60, 0=unlimited; wire into frameLimiter (runtime cvar change applies live)|C20,V42,I.cli,I.config
 
 ## §B — bugs
 

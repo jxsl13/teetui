@@ -83,8 +83,9 @@ type App struct {
 	cfg        *Config    // console-settable client config (§T39/§T40)
 	cfgMu      sync.Mutex // guards a.cfg vs off-main readers (callbacks/loops, §V4)
 
-	warlistPath  string    // path of the loaded warlist, for auto-reload (§T66)
-	warlistMtime time.Time // last-seen warlist mtime (reload goroutine only)
+	warlistPath  string       // path of the loaded warlist, for auto-reload (§T66)
+	warlistMtime time.Time    // last-seen warlist mtime (reload goroutine only)
+	limiter      frameLimiter // render repaint throttle (§T73), Run goroutine only
 
 	tappedOutAt time.Time // last auto tapped-out reply, for rate limiting (§T40)
 	autoReplyAt time.Time // last cl_auto_reply, for rate limiting (§T61)
@@ -435,7 +436,34 @@ func (a *App) Run() {
 	go a.drainSends()        // pace outgoing chat (§T65)
 	go a.reloadWarlistLoop() // live warlist reload (§T66)
 
-	a.draw()
+	// Render throttle (§T73/§V42): repaints are capped at cl_max_fps. Events are
+	// always handled immediately (input never stalls), but the repaint they
+	// trigger is coalesced — if a draw happened too recently, one trailing draw
+	// is scheduled so the latest state is shown without exceeding the cap. A timer
+	// drives that trailing draw. cl_max_fps==0 → wait is always 0 → draw per event
+	// (today's behavior).
+	timer := time.NewTimer(time.Hour)
+	if !timer.Stop() {
+		<-timer.C
+	}
+	pending := false
+
+	drawNow := func() {
+		a.draw()
+		a.limiter.record(time.Now())
+		pending = false
+	}
+	requestDraw := func() {
+		now := time.Now()
+		if w := a.limiter.wait(now, fpsInterval(a.cfg.MaxFPS)); w <= 0 {
+			drawNow()
+		} else if !pending {
+			pending = true
+			timer.Reset(w)
+		}
+	}
+
+	drawNow() // initial frame
 	for {
 		select {
 		case <-a.quit:
@@ -445,7 +473,11 @@ func (a *App) Run() {
 				return
 			}
 			a.handle(ev)
-			a.draw()
+			requestDraw()
+		case <-timer.C:
+			if pending {
+				drawNow()
+			}
 		}
 	}
 }
@@ -1296,6 +1328,10 @@ func (a *App) connTimeout() time.Duration {
 
 // SetConnectTimeout overrides the handshake timeout (0 = default).
 func (a *App) SetConnectTimeout(d time.Duration) { a.connectTimeout = d }
+
+// SetMaxFPS sets the render repaint cap (0 = unlimited), e.g. from the -max-fps
+// flag (§T74). It may also be changed live via the cl_max_fps cvar.
+func (a *App) SetMaxFPS(fps int) { a.cfg.MaxFPS = fps }
 
 // reconnect re-runs Join against the current server using the protocol version
 // recorded by the last Join, so the user (R key) or an auto-reconnect after a

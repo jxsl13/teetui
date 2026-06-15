@@ -24,6 +24,7 @@ type Config struct {
 	WarListReload  int      // reload warlist every N seconds; 0=off (§T66)
 	Chillpw        bool     // auto rcon-login from the secrets file on connect (§T68)
 	PasswordFile   string   // chillpw secrets file (addr→password); never logged (§T68)
+	MaxFPS         int      // cap render repaints/sec; 0=unlimited (§T74)
 }
 
 // NewConfig returns the default configuration (§T39/§T40/§T61 defaults).
@@ -36,6 +37,7 @@ func NewConfig() *Config {
 		AutoReplyMsg:   "%n (teetui auto reply)",
 		Chillpw:        false,         // opt-in: off until the user enables it (§V38)
 		PasswordFile:   "chillpw.txt", // under the config dir unless absolute
+		MaxFPS:         DefaultMaxFPS, // cap repaints (§T74); 0 = unlimited
 	}
 }
 
@@ -77,6 +79,9 @@ var cvars = []cvar{
 	{"cl_war_list_auto_reload", "reload the warlist file every N seconds (0=off)",
 		func(c *Config) string { return itoa(c.WarListReload) },
 		func(c *Config, v string) { c.WarListReload = clampAtoi(v, 0, 3600) }},
+	{"cl_max_fps", "cap render repaints per second (0=unlimited)",
+		func(c *Config) string { return itoa(c.MaxFPS) },
+		func(c *Config, v string) { c.MaxFPS = clampAtoi(v, 0, 1000) }},
 	{"cl_chillpw", "auto rcon-login from the secrets file on connect (0/1)",
 		func(c *Config) string { return b2s(c.Chillpw) },
 		func(c *Config, v string) { c.Chillpw = s2b(v) }},
