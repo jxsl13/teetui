@@ -196,7 +196,7 @@ T23|x|auto-reply: `H` reply-to-last-ping + known-phrase table; ping detect via n
 T24|x|warlist advanced mode: folders, multi-name bundle, war reasons, clan war (← warlist_commands_advanced.cpp)|V14
 T25|~|disconnect/kick handling: OnDisconnect→DISCONNECTED popup + wake DONE; auto-reconnect status UI TODO|V11
 T26|x|bench render hot path; prove zero steady alloc; optimize proven hot cells|C7,V7
-T27|~|cross-OS smoke: build+run Linux/Windows(pwsh)/macOS terminals, color + glyph check|C3,C4,V5,V6
+T27|x|cross-OS smoke: build+run Linux/Windows(pwsh)/macOS terminals, color + glyph check|C3,C4,V5,V6
 T28|x|help page content + key cheatsheet, `?`/Esc toggle, always escapable (← RenderHelpPage)|I.windows,V17
 T29|x|write README.md: usage + full attributions/credits/references (chillerbot-ux/ChillerDragon, DDNet, Teeworlds, twclient, tcell, runewidth) + licenses|V15,I.cli
 T30|x|log scrollback: PageUp/PageDown + mouse-wheel scroll, follow-tail (← transcript scroll log)|I.windows
