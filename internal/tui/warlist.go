@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 
@@ -108,6 +109,35 @@ func (w *Warlist) Get(name string) Relation {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.rel[name]
+}
+
+// NamesWith returns the sorted names assigned relation r (§T62, for the chat
+// "list wars" query and warlist search).
+func (w *Warlist) NamesWith(r Relation) []string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	var out []string
+	for n, rel := range w.rel {
+		if rel == r {
+			out = append(out, n)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// ClansWith returns the sorted clan tags assigned relation r (§T62).
+func (w *Warlist) ClansWith(r Relation) []string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	var out []string
+	for c, rel := range w.clanRel {
+		if rel == r {
+			out = append(out, c)
+		}
+	}
+	sort.Strings(out)
+	return out
 }
 
 // SetReason records a war reason for name (empty clears it).

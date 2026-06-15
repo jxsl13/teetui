@@ -19,6 +19,7 @@ import (
 // Rendering and input are bound via WithObserver(state)/WithController(input).
 // main and the e2e harness share this so both drive identical callback paths.
 func (a *App) DefaultDialer(name, clan, skin string) func(addr string, ver packet.Version) *client.Client {
+	a.playerClan = clan // for chat-query answers (§T62)
 	return func(addr string, v packet.Version) *client.Client {
 		c := client.New(addr,
 			client.WithPlayerInfo(name, clan, skin, -1),

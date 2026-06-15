@@ -280,7 +280,7 @@ T58|x|render fills Game rect at any size: camera frame = rect (drop 64×32 assum
 T59|x|min-size guard + live resize: below Wmin×Hmin show single "resize to ≥WxH" notice (⊥ garble/panic), restore on grow; EventResize → recompute+immediate redraw (not just Sync); test sub-min + round-trip|C17,V32,V30,V11
 T60|x|lang classifier (port chillerbot `langparser`): FindWord (word-boundary, case-insens), IsGreeting(en/qq/rus)/IsBye/IsInsult/IsAskToAsk(+de)/IsQuestionWhy·How·WhichWhat·WhoWhichWhat; pure pkg, table-tested multi-lang|C18,V33,I.twclient
 T61|x|reply-to-ping engine: replace simple `autoReplies` table — use T60 classifier + multi-lang smalltalk (how-are-you/ca-va/wie-gehts/wbu) + no-context ping→"name ?"; H + auto(cl_auto_reply) reply; rate-limited|C18,V33
-T62|.|chat-query answers from state: war-status ("is X war?"/"why do you kill me"→warlist relation+reason), list wars/clan wars, how-to-join-clan, where(map+tile coords), what-os; answer via chat reply|C18,V34,V14
+T62|x|chat-query answers from state: war-status ("is X war?"/"why do you kill me"→warlist relation+reason), list wars/clan wars, how-to-join-clan, where(map+tile coords), what-os; answer via chat reply|C18,V34,V14
 T63|.|last-ping queue (16, newest-first, ← chathelper m_aLastPings): H replies newest + cycles older; optional last-ping line in status/HUD (cl_show_last_ping)|C18,V35
 T64|.|incoming chat filters: `cl_chat_spam_filter` 0/1/2 + insult filter + user filter list (console addfilter/listfilter/delfilter); hide matching pings from log; mode2=hide+autoreply; off default|C18,V36
 T65|.|spam-safe outgoing send buffer: rate-limited chat queue (≤8, min interval, ← chathelper SayBuffer) so teetui ⊥ flood/get muted; FIFO; replaces immediate multi-line sends|C18,V37

@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -75,6 +76,7 @@ type App struct {
 	warlist    *Warlist
 	keymap     *Keymap
 	playerName string
+	playerClan string  // our clan tag, for chat-query answers (§T62)
 	cfg        *Config // console-settable client config (§T39/§T40)
 
 	tappedOutAt time.Time // last auto tapped-out reply, for rate limiting (§T40)
@@ -528,9 +530,10 @@ func (a *App) doAction(act KeyAction) {
 	}
 }
 
-// autoReplyPing replies to the most recent message that pinged us (§T23/§T40,
-// bound to H). It uses the canned known-phrase table, falling back to a greeting
-// addressed to the pinger.
+// autoReplyPing replies to the most recent message that pinged us (§T23/§T61/
+// §T62, bound to H). It first tries a state-derived query answer (war status,
+// where, OS, …, §T62), then the canned context reply (§T61), then a friendly
+// default — always addressed to the pinger.
 func (a *App) autoReplyPing() {
 	a.mu.Lock()
 	from, msg, at := a.pingFrom, a.pingMsg, a.pingAt
@@ -539,11 +542,37 @@ func (a *App) autoReplyPing() {
 		a.log.Addf(StyleSystem, "no recent ping to reply to")
 		return
 	}
+	if reply, ok := composeQueryReply(msg, from, a.queryEnv()); ok {
+		a.sendChat(reply, false)
+		return
+	}
 	reply, ok := composeReply(msg, from, a.playerName)
 	if !ok {
 		reply = from + " hi" // nothing matched → a friendly default
 	}
 	a.sendChat(reply, false)
+}
+
+// queryEnv snapshots the read-only state a chat-query answer may use (§T62/§V34).
+func (a *App) queryEnv() queryEnv {
+	env := queryEnv{
+		warlist:  a.warlist,
+		selfClan: a.playerClan,
+		goos:     runtime.GOOS,
+	}
+	if c := a.cli.Load(); c != nil {
+		for _, p := range c.Roster() {
+			if p.Name != "" {
+				env.rosterNames = append(env.rosterNames, p.Name)
+			}
+		}
+	}
+	if st, ok := a.state.Get(); ok {
+		if cx, cy, has := cameraCenter(st); has {
+			env.haveCoords, env.coordX, env.coordY = true, cx, cy
+		}
+	}
+	return env
 }
 
 func (a *App) enterMode(mode int) {
