@@ -66,6 +66,15 @@ func ContainsAny(text string, subs ...string) bool {
 	return false
 }
 
+// ContainsName reports whether msg mentions name (case-insensitive ping
+// detection). Empty name never matches.
+func ContainsName(msg, name string) bool {
+	if name == "" {
+		return false
+	}
+	return strings.Contains(strings.ToLower(msg), strings.ToLower(name))
+}
+
 // IsGreeting reports whether msg is a greeting (en/qq/rus).
 func IsGreeting(msg string) bool {
 	return FindAnyWord(msg, "hi", "hello", "hey", "heya", "hai", "yo", "henlo",

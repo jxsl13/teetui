@@ -98,9 +98,6 @@ type App struct {
 	services     map[string]any                                // cross-feature service registry
 	sendChatHook []func(msg string, team bool) (string, bool)  // outgoing-chat chain
 
-	tappedOutAt time.Time // last auto tapped-out reply, for rate limiting (§T40)
-	autoReplyAt time.Time // last cl_auto_reply, for rate limiting (§T61)
-
 	mu        sync.Mutex // guards popup + sent (callback goroutines)
 	popup     Popup
 	pings     *pingQueue  // last-16 pings, newest-first (§T63)
@@ -237,7 +234,8 @@ func (a *App) Client() *client.Client { return a.cli.Load() }
 func (a *App) SetName(name string) { a.playerName = name }
 
 // NoteChat is called for every incoming chat line (from the twclient callback
-// goroutine). If the line pings us it is remembered for the H auto-reply (§V4).
+// goroutine). If the line pings us it is queued for the H reply (§V4). The
+// auto-responders (tapped-out / cl_auto_reply) now live in features/responders.
 func (a *App) NoteChat(from, msg string) {
 	if from == a.playerName || !containsName(msg, a.playerName) {
 		return
@@ -246,52 +244,6 @@ func (a *App) NoteChat(from, msg string) {
 	a.mu.Lock()
 	a.pingCycle = 0 // a new ping resets the H reply cursor to newest
 	a.mu.Unlock()
-	a.maybeTappedOut()
-	a.maybeAutoReply(from, msg)
-}
-
-// maybeAutoReply auto-answers a ping when cl_auto_reply is on (§T61), rate-
-// limited like the tapped-out reply. It uses the cl_auto_reply_msg template
-// (%n → author); tapped-out (if also on) already fired, so this is the general
-// auto-responder. Off by default — teetui is interactive.
-func (a *App) maybeAutoReply(from, _ string) {
-	cs := a.cfgSnap()
-	if !cs.AutoReply || from == "" {
-		return
-	}
-	a.mu.Lock()
-	if time.Since(a.autoReplyAt) < tappedOutInterval {
-		a.mu.Unlock()
-		return
-	}
-	a.autoReplyAt = time.Now()
-	tmpl := cs.AutoReplyMsg
-	a.mu.Unlock()
-	if msg := expandAutoReply(tmpl, from); msg != "" {
-		a.sendChat(msg, false)
-	}
-}
-
-// tappedOutInterval rate-limits the auto tapped-out reply so a burst of pings
-// does not spam the chat (§T40).
-const tappedOutInterval = 30 * time.Second
-
-// maybeTappedOut sends the configured tapped-out auto-reply when the feature is
-// enabled and we were just pinged, at most once per tappedOutInterval (§T40).
-// Off by default — teetui is interactive, not a headless AFK bot.
-func (a *App) maybeTappedOut() {
-	cs := a.cfgSnap()
-	if !cs.TappedOut || cs.TappedOutText == "" {
-		return
-	}
-	a.mu.Lock()
-	if time.Since(a.tappedOutAt) < tappedOutInterval {
-		a.mu.Unlock()
-		return
-	}
-	a.tappedOutAt = time.Now()
-	a.mu.Unlock()
-	a.sendChat(cs.TappedOutText, false)
 }
 
 // SetDialer installs the factory used to (re)build a client when joining a

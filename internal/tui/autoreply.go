@@ -2,15 +2,6 @@ package tui
 
 import "strings"
 
-// containsName reports whether msg mentions name (case-insensitive ping
-// detection). Empty name never matches.
-func containsName(msg, name string) bool {
-	if name == "" {
-		return false
-	}
-	return strings.Contains(strings.ToLower(msg), strings.ToLower(name))
-}
-
 // smalltalkReply answers small-talk pings in the sender's language (← chillerbot
 // chathelper/smalltalk.cpp), addressing the author. Returns ("", false) when the
 // message is not small talk.
@@ -75,10 +66,4 @@ func isNoContextPing(msg, self string) bool {
 		return r
 	}, low)
 	return strings.TrimSpace(low) == ""
-}
-
-// expandAutoReply renders the cl_auto_reply_msg template: %n → author name (←
-// chillerbot cl_auto_reply_msg). Other text passes through unchanged.
-func expandAutoReply(tmpl, from string) string {
-	return strings.ReplaceAll(tmpl, "%n", from)
 }

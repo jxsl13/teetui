@@ -12,25 +12,17 @@ import (
 // optional auto-reply when pinged while AFK (§T40); it is off by default because
 // teetui is an interactive client, not a headless bot.
 type Config struct {
-	SilentChatCmds bool   // apply !commands locally without sending them (§V14)
-	TappedOut      bool   // auto-reply with TappedOutText when pinged (§T40)
-	TappedOutText  string // the auto tapped-out reply
-	AutoReply      bool   // auto-reply with AutoReplyMsg on every ping (§T61)
-	AutoReplyMsg   string // cl_auto_reply_msg template (%n → author)
-	ShowLastPing   bool   // show the most recent ping in the status bar (§T63)
-	WarListReload  int    // reload warlist every N seconds; 0=off (§T66)
-	MaxFPS         int    // cap render repaints/sec; 0=unlimited (§T74)
-	LogLines       int    // log-band rows when the visual is on (§T88)
+	SilentChatCmds bool // apply !commands locally without sending them (§V14)
+	ShowLastPing   bool // show the most recent ping in the status bar (§T63)
+	WarListReload  int  // reload warlist every N seconds; 0=off (§T66)
+	MaxFPS         int  // cap render repaints/sec; 0=unlimited (§T74)
+	LogLines       int  // log-band rows when the visual is on (§T88)
 }
 
 // NewConfig returns the default configuration (§T39/§T40/§T61 defaults).
 func NewConfig() *Config {
 	return &Config{
-		SilentChatCmds: true, // cl_silent_chat_commands default on (§V14)
-		TappedOut:      false,
-		TappedOutText:  "I'm currently tapped out (afk)",
-		AutoReply:      false,
-		AutoReplyMsg:   "%n (teetui auto reply)",
+		SilentChatCmds: true,            // cl_silent_chat_commands default on (§V14)
 		MaxFPS:         DefaultMaxFPS,   // cap repaints (§T74); 0 = unlimited
 		LogLines:       DefaultLogLines, // log-band rows when visual on (§T88)
 	}
@@ -50,18 +42,6 @@ var cvars = []cvar{
 	{"cl_silent_chat_commands", "apply !war/!peace/… locally without sending to server (0/1)",
 		func(c *Config) string { return b2s(c.SilentChatCmds) },
 		func(c *Config, v string) { c.SilentChatCmds = s2b(v) }},
-	{"cl_tapped_out_message", "auto-reply with the tapped-out message when pinged (0/1)",
-		func(c *Config) string { return b2s(c.TappedOut) },
-		func(c *Config, v string) { c.TappedOut = s2b(v) }},
-	{"cl_tapped_out_message_text", "the text sent by the tapped-out auto-reply",
-		func(c *Config) string { return c.TappedOutText },
-		func(c *Config, v string) { c.TappedOutText = v }},
-	{"cl_auto_reply", "auto-reply with cl_auto_reply_msg on every ping (0/1)",
-		func(c *Config) string { return b2s(c.AutoReply) },
-		func(c *Config, v string) { c.AutoReply = s2b(v) }},
-	{"cl_auto_reply_msg", "auto-reply template; %n = the pinger's name",
-		func(c *Config) string { return c.AutoReplyMsg },
-		func(c *Config, v string) { c.AutoReplyMsg = v }},
 	{"cl_show_last_ping", "show the most recent chat ping in the status bar (0/1)",
 		func(c *Config) string { return b2s(c.ShowLastPing) },
 		func(c *Config, v string) { c.ShowLastPing = s2b(v) }},

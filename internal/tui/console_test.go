@@ -66,21 +66,11 @@ func TestConsoleCvars(t *testing.T) {
 		t.Error("cl_silent_chat_commands should be off after set 0")
 	}
 
-	// §T40: tapped-out toggle + text.
-	runConsole("cl_tapped_out_message on", cfg)
-	if !cfg.TappedOut {
-		t.Error("cl_tapped_out_message should be on")
-	}
-	runConsole("cl_tapped_out_message_text brb food", cfg)
-	if cfg.TappedOutText != "brb food" {
-		t.Errorf("tapped-out text = %q", cfg.TappedOutText)
-	}
-
 	// help <cmd> yields the help-text line; unknown is reported.
 	if r := runConsole("help echo", cfg); r.Out[0] != builtinHelp["echo"] {
 		t.Errorf("help echo = %q", r.Out[0])
 	}
-	if h := consoleHelp("cl_tapped_out_message"); h == "" {
+	if h := consoleHelp("cl_silent_chat_commands"); h == "" {
 		t.Error("consoleHelp for cvar should be non-empty")
 	}
 	if h := consoleHelp("nope"); h != "" {

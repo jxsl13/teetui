@@ -372,7 +372,7 @@ T78|.|feature `features/warlist`: warlist store + `!war/!peace/!team/!del/!reaso
 T79|.|feature `features/replytoping`: H DefineAction → composeReply (lang lib smalltalk/greeting/no-context) over a last-ping queue; reads PlayerName via Host|C21,V44,V33
 T80|.|feature `features/chatquery`: war-status/where/os/list answers; Lookup("warlist") for relations+reasons; uses Roster/Tick/PlayerClan from Host|C21,V44,V34
 T81|x|feature `features/chatfilter`: incoming spam/insult/user filters via OnChat suppress; own cvars (cl_chat_spam_filter[_insults]) + console addfilter/listfilter/delfilter via Host.DefineCommand|C21,V44,V36
-T82|.|feature `features/responders`: tapped-out (cl_tapped_out_message[_text]) + auto-reply (cl_auto_reply[_msg]) on ping; own cvars; rate-limited; reads PlayerName|C21,V44,V33
+T82|x|feature `features/responders`: tapped-out (cl_tapped_out_message[_text]) + auto-reply (cl_auto_reply[_msg]) on ping; own cvars; rate-limited; reads PlayerName|C21,V44,V33
 T83|.|feature `features/lastping`: 16-deep ping queue + AddStatusField (cl_show_last_ping); Provides "pings" for replytoping (or replytoping owns queue + Provides)|C21,V44,V35
 T84|x|feature `features/chillpw`: opt-in rcon auto-login from secrets file on OnConnect; own cvars (cl_chillpw, cl_password_file); secret never logged|C21,V44,V38
 T85|.|feature `features/cmdhook`: external command hooks (~/.config/teetui/hooks/<event>) re-expressed as a feature on the new Host API (replaces T71 core wiring)|C21,V44,V40

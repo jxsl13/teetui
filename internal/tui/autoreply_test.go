@@ -47,13 +47,3 @@ func TestComposeReply(t *testing.T) {
 		t.Error("empty author must not reply")
 	}
 }
-
-// §T61: the cl_auto_reply template expands %n to the pinger's name.
-func TestExpandAutoReply(t *testing.T) {
-	if got := expandAutoReply("%n (teetui auto reply)", "alice"); got != "alice (teetui auto reply)" {
-		t.Errorf("expandAutoReply = %q", got)
-	}
-	if got := expandAutoReply("static text", "alice"); got != "static text" {
-		t.Errorf("expandAutoReply static = %q", got)
-	}
-}
