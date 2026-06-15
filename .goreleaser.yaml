@@ -1,0 +1,71 @@
+# GoReleaser config for teetui — https://goreleaser.com
+#
+# Static linking: every build sets CGO_ENABLED=0, so the project (pure Go:
+# tcell + twclient + go-runewidth, no cgo) produces fully static binaries on
+# Linux and Windows. macOS binaries are NOT fully static — Apple always links
+# libSystem dynamically and provides no static libc — but with CGO_ENABLED=0
+# they are cgo-free and have no third-party/runtime dependencies, which is the
+# best achievable on darwin.
+version: 2
+
+project_name: teetui
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: teetui
+    main: .
+    binary: teetui
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      # -s -w strips the symbol table and DWARF debug info for smaller binaries.
+      # No -X version injection: main.go has no package-level version var.
+      - -s -w
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: teetui
+    ids:
+      - teetui
+    # e.g. teetui_0.6.0_linux_amd64.tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+    # zip for Windows, tar.gz everywhere else.
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    files:
+      - README.md
+      - LICENSE
+
+checksum:
+  name_template: "checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  draft: false
+  prerelease: auto
