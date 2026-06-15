@@ -9,7 +9,6 @@ import (
 	"os"
 
 	"github.com/jxsl13/teetui/internal/tui"
-	"github.com/jxsl13/twclient/client"
 	"github.com/jxsl13/twclient/packet"
 )
 
@@ -48,46 +47,10 @@ func run() error {
 
 	// Client factory: all comms go through twclient (render via Observer, input
 	// via Controller, chat/server/rcon/disconnect via callbacks — §V1, §V2,
-	// §V12). The app reuses it to rejoin a server from the browser (§T18).
-	newClient := func(addr string, v packet.Version) *client.Client {
-		c := client.New(addr,
-			client.WithPlayerInfo(*name, *clan, *skin, -1),
-			client.WithVersion(v),
-			client.WithPrediction(true),
-			client.WithObserver(state),
-			client.WithController(input),
-		)
-		c.OnChat(func(cc *client.Client, e packet.EventChat) {
-			if app.IsOwnEcho(e.ClientID, e.Msg) {
-				return // already echoed locally on send (§V29)
-			}
-			from := ""
-			if p, ok := cc.Player(e.ClientID); ok {
-				from = p.Name
-			}
-			who := from
-			if who == "" {
-				who = fmt.Sprintf("%d", e.ClientID)
-			}
-			log.Addf(tui.StyleChat, "[%s] %s", who, e.Msg)
-			app.NoteChat(from, e.Msg) // ping tracking for H auto-reply
-		})
-		c.OnServerMsg(func(_ *client.Client, e packet.EventServerMsg) {
-			log.Addf(tui.StyleSystem, "*** %s", e.Msg)
-		})
-		c.OnBroadcast(func(_ *client.Client, e packet.EventBroadcast) {
-			log.Addf(tui.StyleSystem, ">> %s", e.Text)
-		})
-		c.OnRconLine(func(_ *client.Client, e packet.EventRconLine) {
-			log.Addf(tui.StyleSystem, "rcon> %s", e.Line)
-		})
-		c.OnDisconnect(func(_ *client.Client, r client.DisconnectReason) {
-			app.ShowDisconnect(r.Text)
-		})
-		return c
-	}
-	app.SetDialer(newClient)
+	// §V12). The app reuses it to rejoin a server from the browser (§T18). The
+	// wiring lives in tui.DefaultDialer so the e2e harness drives the same paths.
 	app.SetName(*name) // for ping detection (§T23)
+	app.SetDialer(app.DefaultDialer(*name, *clan, *skin))
 
 	// Initial connect goes through the same path as a browser join, so the
 	// twclient frontend loop (RunFrontends) is started — that is what drives

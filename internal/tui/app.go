@@ -89,8 +89,8 @@ type App struct {
 	quit chan struct{}
 }
 
-// NewApp wires the app to its shared state, input controller and log, and loads
-// persisted input history from disk (§V16).
+// NewApp wires the app to its shared state, input controller and log on a real
+// terminal screen, and loads persisted input history from disk (§V16).
 func NewApp(server string, state *State, input *InputController, log *Log) (*App, error) {
 	scr, err := tcell.NewScreen()
 	if err != nil {
@@ -101,7 +101,14 @@ func NewApp(server string, state *State, input *InputController, log *Log) (*App
 	}
 	scr.EnableMouse()
 	scr.Clear()
+	return NewAppWithScreen(scr, server, state, input, log), nil
+}
 
+// NewAppWithScreen wires an app around an ALREADY-initialized tcell screen — a
+// real one (NewApp) or a tcell.SimulationScreen. The simulation path lets the
+// e2e harness drive the whole UI headlessly and assert the rendered cell buffer
+// against a live server (§C14/§V23), exercising the same handlers main uses.
+func NewAppWithScreen(scr tcell.Screen, server string, state *State, input *InputController, log *Log) *App {
 	a := &App{
 		scr:      scr,
 		state:    state,
@@ -126,7 +133,7 @@ func NewApp(server string, state *State, input *InputController, log *Log) (*App
 		_ = a.browser.LoadFavorites(filepath.Join(p, "favorites.txt"))
 		_ = a.keymap.Load(filepath.Join(p, "keymap.txt")) // rebindable keys (§V19/§T42)
 	}
-	return a, nil
+	return a
 }
 
 // favPath returns the favorites file path (best-effort).
@@ -287,6 +294,24 @@ func (a *App) Run() {
 		}
 	}
 }
+
+// Dispatch feeds one event through the normal handler then redraws, exactly as
+// the Run loop does per event. Exported so the e2e harness can drive the full UI
+// synchronously (key → handler → draw) without owning a terminal and then read
+// back the rendered cell buffer (§C14).
+func (a *App) Dispatch(ev tcell.Event) {
+	a.handle(ev)
+	a.draw()
+}
+
+// Redraw forces a repaint, picking up background state changes (snapshots,
+// chat/disconnect callbacks) without a key event. The Run loop redraws on its
+// wake interrupt; the e2e harness calls this after waiting on a live update.
+func (a *App) Redraw() { a.draw() }
+
+// Connected reports whether the current session has completed its handshake
+// (status-bar/e2e use).
+func (a *App) Connected() bool { return a.connected.Load() }
 
 func (a *App) popupActive() bool {
 	a.mu.Lock()
