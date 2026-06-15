@@ -214,6 +214,19 @@ func TestE2EUI(t *testing.T) {
 				refuteScreen(t, app, sim, "browser closed", "Internet")
 				mustScreen(t, app, sim, "game restored", "x:")
 			})
+
+			t.Run("responsive_resize", func(t *testing.T) {
+				// Larger terminal: the live game still renders (HUD coords) at the
+				// new, bigger resolution (§V31/§C17).
+				sim.SetSize(220, 64)
+				mustScreen(t, app, sim, "renders at large size", "x:")
+				// Below the minimum: single resize notice, no garbled layout (§V32).
+				sim.SetSize(120, 4)
+				mustScreen(t, app, sim, "too-small notice", "terminal too small")
+				// Restore: full UI + live game come back (§V30 round-trip).
+				sim.SetSize(160, 48)
+				mustScreen(t, app, sim, "restored after resize", "x:")
+			})
 		})
 	}
 }
