@@ -371,7 +371,7 @@ T84|.|feature `features/chillpw`: opt-in rcon auto-login from secrets file on On
 T85|.|feature `features/cmdhook`: external command hooks (~/.config/teetui/hooks/<event>) re-expressed as a feature on the new Host API (replaces T71 core wiring)|C21,V44,V40
 T86|.|`main.go` single-file: blank-import all feature packages + `tui.Main()`; STRIP feature logic from core/main; + import-isolation guard test (V43: ⊥ core↔features import) + parity check (V44: migrated feature tests pass in their pkgs)|C21,V43,V45,V44
 T87|x|layout redesign → vertical stack: rewrite `Compute` (status top / game / log band / input bottom, full-width, ⊥ left/right); logBandHeight fn (visual on → clamp(cfg.LogLines,1,⌊h/2⌋); off → full body); rewire `draw()` (game above band, logs above legend); update layout tests (responsive + cap + resize)|C22,V48,V49,V50,I.windows
-T88|.|`cl_log_lines` config (default 10) + `-log-lines` flag: log-band rows when visual on, clamped ⌊h/2⌋ at render; runtime cvar change applies live|C22,V49,I.cli,I.config
+T88|x|`cl_log_lines` config (default 10) + `-log-lines` flag: log-band rows when visual on, clamped ⌊h/2⌋ at render; runtime cvar change applies live|C22,V49,I.cli,I.config
 
 ## §B — bugs
 

@@ -1333,6 +1333,16 @@ func (a *App) SetConnectTimeout(d time.Duration) { a.connectTimeout = d }
 // flag (§T74). It may also be changed live via the cl_max_fps cvar.
 func (a *App) SetMaxFPS(fps int) { a.cfg.MaxFPS = fps }
 
+// SetLogLines sets the log-band row count shown when the visual is on (§T88),
+// e.g. from -log-lines; clamped to ⌊h/2⌋ at render. Also settable live via the
+// cl_log_lines cvar. Values < 1 fall back to the default.
+func (a *App) SetLogLines(n int) {
+	if n < 1 {
+		n = DefaultLogLines
+	}
+	a.cfg.LogLines = n
+}
+
 // reconnect re-runs Join against the current server using the protocol version
 // recorded by the last Join, so the user (R key) or an auto-reconnect after a
 // drop can retry without re-typing flags (§T50/§V24/§T25). It bumps the attempt

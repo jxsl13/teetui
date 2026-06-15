@@ -28,6 +28,7 @@ func run() error {
 		version  = flag.String("version", "0.6", "protocol version: 0.6 or 0.7")
 		connTime = flag.Duration("connect-timeout", tui.DefaultConnectTimeout, "handshake timeout (login + map download)")
 		maxFPS   = flag.Int("max-fps", tui.DefaultMaxFPS, "cap render repaints per second (0 = unlimited)")
+		logLines = flag.Int("log-lines", tui.DefaultLogLines, "log rows shown below the visual (capped at half the height)")
 	)
 	flag.Parse()
 
@@ -46,6 +47,7 @@ func run() error {
 	}
 	app.SetConnectTimeout(*connTime)
 	app.SetMaxFPS(*maxFPS)
+	app.SetLogLines(*logLines)
 
 	// Client factory: all comms go through twclient (render via Observer, input
 	// via Controller, chat/server/rcon/disconnect via callbacks — §V1, §V2,
