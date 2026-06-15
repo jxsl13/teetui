@@ -588,9 +588,48 @@ func (a *App) runLocal(line string) {
 	if r.Chat != "" {
 		a.sendChat(r.Chat, false)
 	}
+	if r.Spectate {
+		a.spectate(r.SpecName)
+	}
 	if r.Quit {
 		a.Stop()
 	}
+}
+
+// spectate sets the spectated player by name, or free-view when name is empty
+// (§T37). The name→id lookup uses the in-session roster.
+func (a *App) spectate(name string) {
+	id := -1
+	if name != "" {
+		if pid := a.findPlayer(name); pid >= 0 {
+			id = pid
+		} else {
+			a.log.Addf(StyleSelf, "no player named %q", name)
+			return
+		}
+	}
+	a.do(client.ActSetSpectator{TargetID: id})
+	if id < 0 {
+		a.log.Addf(StyleSystem, "spectating (free view)")
+	} else {
+		a.log.Addf(StyleSystem, "spectating %s", name)
+	}
+}
+
+// findPlayer returns the client id of the first roster player whose name matches
+// (case-insensitive), or -1.
+func (a *App) findPlayer(name string) int {
+	c := a.cli.Load()
+	if c == nil {
+		return -1
+	}
+	low := strings.ToLower(name)
+	for _, p := range c.Roster() {
+		if strings.ToLower(p.Name) == low {
+			return p.ClientID
+		}
+	}
+	return -1
 }
 
 // rconAuth logs in to rcon with the typed password (§T20). RconLogin blocks on

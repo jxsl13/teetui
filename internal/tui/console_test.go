@@ -11,7 +11,7 @@ func TestRunConsole(t *testing.T) {
 		quit bool
 	}{
 		{"", "", "", false},
-		{"help", "commands: help, echo <text>, say <msg>, quit, version", "", false},
+		{"help", "commands: help, echo <text>, say <msg>, spec [name], quit, version", "", false},
 		{"echo hello there", "hello there", "", false},
 		{"say gg wp", "", "gg wp", false},
 		{"say", "usage: say <message>", "", false},
@@ -34,6 +34,17 @@ func TestRunConsole(t *testing.T) {
 		if got0 != c.out0 {
 			t.Errorf("%q: out=%q want %q", c.in, got0, c.out0)
 		}
+	}
+
+	// §T37: spectate/pause parsing.
+	if r := runConsole("spec Nameless"); !r.Spectate || r.SpecName != "Nameless" {
+		t.Errorf("spec parse: %+v", r)
+	}
+	if r := runConsole("pause"); !r.Spectate || r.SpecName != "" {
+		t.Errorf("pause free-view: %+v", r)
+	}
+	if r := runConsole("spectate Foo Bar"); !r.Spectate || r.SpecName != "Foo Bar" {
+		t.Errorf("spectate multiword: %+v", r)
 	}
 }
 

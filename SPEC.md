@@ -191,7 +191,7 @@ T33|.|map download progress bar on join (← transcript download bar)|I.windows
 T34|x|in-game HUD: live local-tee coords (tile x,y) readout (← transcript coords change on move)|I.render
 T35|x|visual-mode toggle key `v`: show/hide game render, resize-safe via Sync (← transcript visual mode)|I.modes,V11,V18
 T36|x|action keys: self-kill `k`→ActKill, emote `e`→ActEmoticon, vote F5/F6→ActVote (← transcript K self-kill)|V12,I.twclient
-T37|.|spectate/pause-follow: ActSetSpectator + `pause <name>` cmd (← transcript pause follow)|V12,I.twclient
+T37|x|spectate/pause: console `spec/spectate/pause [name]` → name→id via Roster → ActSetSpectator (free-view when no name) (← transcript pause follow)|V12,I.twclient
 T38|x|input readline edit: Ctrl-U/Ctrl-K/Ctrl-W kill + cursor move (Left/Right/Home/End) (← transcript Ctrl-U/K); tab name-complete TODO|I.windows
 T39|~|local console F1: command interpreter (help/echo/say/quit/version) + history DONE; twclient config cmds + tab-complete + help-text line TODO (← transcript F1)|I.modes,V9
 T40|~|chillerbot AFK: `H` reply-to-ping DONE (T23); auto tapped-out message + `cl_tapped_out_message` toggle TODO (off by default — teetui is interactive, not AFK)|I.config
