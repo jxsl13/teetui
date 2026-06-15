@@ -85,9 +85,10 @@ type App struct {
 
 	mu        sync.Mutex // guards popup + sent (callback goroutines)
 	popup     Popup
-	pings     *pingQueue // last-16 pings, newest-first (§T63)
-	pingCycle int        // H reply cursor into pings (0 = newest), guarded by mu
-	sent      []sentChat // recently sent chat, for own-echo dedupe (§V29)
+	pings     *pingQueue  // last-16 pings, newest-first (§T63)
+	pingCycle int         // H reply cursor into pings (0 = newest), guarded by mu
+	sendBuf   *sendBuffer // rate-limited outgoing chat queue (§T65)
+	sent      []sentChat  // recently sent chat, for own-echo dedupe (§V29)
 
 	quit chan struct{}
 }
@@ -126,7 +127,8 @@ func NewAppWithScreen(scr tcell.Screen, server string, state *State, input *Inpu
 		warlist:  NewWarlist(),
 		keymap:   DefaultKeymap(),
 		cfg:      NewConfig(),
-		pings:    newPingQueue(16), // last-16 ping history (§T63)
+		pings:    newPingQueue(16),                             // last-16 ping history (§T63)
+		sendBuf:  newSendBuffer(sendMinInterval, sendQueueMax), // spam-safe send (§T65)
 		visual:   true,
 		popup:    greetingPopup(), // startup greeting (§T31)
 		quit:     make(chan struct{}),
@@ -322,11 +324,40 @@ func (a *App) Stop() {
 	}
 }
 
+// drainSends paces queued outgoing chat through the spam-safe buffer, emitting
+// at most one line per tick interval until the app quits (§T65/§V37).
+func (a *App) drainSends() {
+	t := time.NewTicker(100 * time.Millisecond)
+	defer t.Stop()
+	for {
+		select {
+		case <-a.quit:
+			return
+		case now := <-t.C:
+			a.sendBuf.drain(now, a.flushSend)
+		}
+	}
+}
+
+// flushSend performs the actual server send for one dequeued chat line (§T65).
+func (a *App) flushSend(msg string, team bool) {
+	c := a.cli.Load()
+	if c == nil {
+		return
+	}
+	if team {
+		_ = c.Do(client.ActChat{Team: true, Msg: msg})
+	} else {
+		_ = c.SendChat(msg)
+	}
+}
+
 // Run renders until quit. It returns after restoring the terminal.
 func (a *App) Run() {
 	defer a.scr.Fini()
 	events := make(chan tcell.Event, 16)
 	go a.scr.ChannelEvents(events, a.quit)
+	go a.drainSends() // pace outgoing chat (§T65)
 
 	a.draw()
 	for {
@@ -810,11 +841,10 @@ func (a *App) sendChat(msg string, team bool) {
 	if c == nil {
 		return
 	}
-	if team {
-		_ = c.Do(client.ActChat{Team: true, Msg: msg})
-	} else {
-		_ = c.SendChat(msg)
-	}
+	// Queue the actual server send through the rate-limited spam-safe buffer so a
+	// burst cannot flood the server / trip its mute (§T65/§V37). The local echo
+	// below stays immediate for responsiveness.
+	a.sendBuf.enqueue(msg, team)
 	// Echo our own line locally and immediately — some servers do not echo the
 	// sender's own chat, and on 0.6 the echo carries an empty name (§V29/§B8).
 	a.noteSent(msg)
