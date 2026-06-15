@@ -81,6 +81,16 @@ func DrawGame(s tcell.Screen, x0, y0, w, h int, st client.TickState) {
 		drawStr(s, x0, y0, w, StyleSystem, "connecting…")
 		return
 	}
+	drawGameCentered(s, x0, y0, w, h, cx, cy, st)
+}
+
+// drawGameCentered renders DrawGame's scene around an explicit camera center, so
+// the caller can supply a smoothed center (§T43) rather than the raw per-tick
+// tile coords.
+func drawGameCentered(s tcell.Screen, x0, y0, w, h, cx, cy int, st client.TickState) {
+	if w < 1 || h < 1 || st.Map == nil {
+		return
+	}
 	halfW := w / 2
 	halfH := h / 2
 
@@ -174,6 +184,15 @@ func DrawGameHalf(s tcell.Screen, x0, y0, w, h int, st client.TickState) {
 	cx, cy, ok := cameraCenter(st)
 	if st.Map == nil || !ok {
 		drawStr(s, x0, y0, w, StyleSystem, "connecting…")
+		return
+	}
+	drawGameHalfCentered(s, x0, y0, w, h, cx, cy, st)
+}
+
+// drawGameHalfCentered is DrawGameHalf around an explicit (smoothed) camera
+// center (§T43).
+func drawGameHalfCentered(s tcell.Screen, x0, y0, w, h, cx, cy int, st client.TickState) {
+	if w < 1 || h < 1 || st.Map == nil {
 		return
 	}
 	halfW := w / 2

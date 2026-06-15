@@ -212,7 +212,7 @@ T39|~|local console F1: command interpreter (help/echo/say/quit/version) + histo
 T40|~|chillerbot AFK: `H` reply-to-ping DONE (T23); auto tapped-out message + `cl_tapped_out_message` toggle TODO (off by default — teetui is interactive, not AFK)|I.config
 T41|x|reconcile keymap to §I key-binding table (?/B/F1/F2/T/Z/H/V/K/Tab//) — supersedes foundation `t`/`y`/`h`/`q`|I.modes,V17
 T42|x|rebindable keymap: config file load/save, default = §I table, runtime bind (exceed reference)|V19,C12
-T43|~|render-quality: Start/Finish/Checkpoint colored via MapView booleans DONE (Tele/Boost via class); sub-cell → T46; smooth camera TODO|C11,V20,I.render
+T43|x|render-quality: Start/Finish/Checkpoint colored via MapView booleans DONE (Tele/Boost via class); sub-cell → T46; smooth camera (eased cameraSmoother, §T43) DONE|C11,V20,I.render
 T44|x|parity-checklist verify: each §T30-41 feature ≥ chillerbot; doc gaps|C10,V20
 T45|x|browser LAN + Favorites: favorites persist ~/.config/teetui/favorites.txt + `f` toggle + Favorites tab; LAN = connless probe of localhost ports (subnet broadcast would need twclient support)|I.windows,V13
 T46|x|render sub-cell detail: half-block ▀▄ (2 tiles/cell vertical) | braille mode for finer map; toggle/auto (completes T43 sub-cell)|C11,V20,I.render

@@ -59,7 +59,8 @@ type App struct {
 	compStart   int
 
 	visual     bool
-	subcell    bool // half-block sub-cell map render (§T46)
+	subcell    bool           // half-block sub-cell map render (§T46)
+	camera     cameraSmoother // eases the rendered camera center (§T43)
 	help       bool
 	scoreboard bool
 	hookOn     bool
@@ -1031,11 +1032,7 @@ func (a *App) draw() {
 	st, have := a.state.Get()
 
 	if a.visual {
-		if a.subcell {
-			DrawGameHalf(a.scr, lay.Game.X, lay.Game.Y, lay.Game.W, lay.Game.H, st)
-		} else {
-			DrawGame(a.scr, lay.Game.X, lay.Game.Y, lay.Game.W, lay.Game.H, st)
-		}
+		a.drawScene(lay.Game, st)
 		if a.scoreboard && have {
 			DrawScoreboard(a.scr, lay.Game, st, a.warlist)
 		}
@@ -1070,6 +1067,26 @@ func (a *App) draw() {
 		drawPopup(a.scr, w, h, popup)
 	}
 	a.scr.Show()
+}
+
+// drawScene renders the game view with a smoothed camera (§T43). It computes the
+// raw camera target from the tick, eases it through the smoother, then draws
+// around the eased center. When there is nothing to anchor on it resets the
+// smoother and shows the connecting placeholder (so a reconnect snaps cleanly
+// rather than sliding across the map).
+func (a *App) drawScene(r Rect, st client.TickState) {
+	tx, ty, ok := cameraCenter(st)
+	if st.Map == nil || !ok {
+		a.camera.reset()
+		drawStr(a.scr, r.X, r.Y, r.W, StyleSystem, "connecting…")
+		return
+	}
+	cx, cy := a.camera.step(tx, ty, cameraAlpha)
+	if a.subcell {
+		drawGameHalfCentered(a.scr, r.X, r.Y, r.W, r.H, cx, cy, st)
+	} else {
+		drawGameCentered(a.scr, r.X, r.Y, r.W, r.H, cx, cy, st)
+	}
 }
 
 func (a *App) drawInput(r Rect) {
