@@ -12,16 +12,23 @@ import (
 // optional auto-reply when pinged while AFK (§T40); it is off by default because
 // teetui is an interactive client, not a headless bot.
 type Config struct {
-	MaxFPS   int // cap render repaints/sec; 0=unlimited (§T74)
-	LogLines int // log-band rows when the visual is on (§T88)
+	MaxFPS         int    // cap render repaints/sec; 0=unlimited (§T74)
+	LogLines       int    // log-band rows when the visual is on (§T88)
+	PlayerName     string // identity (§T89, player_name)
+	PlayerClan     string // identity (§T89, player_clan)
+	ConnectTimeout int    // handshake timeout seconds (§T89, cl_connect_timeout)
 }
 
 // NewConfig returns the default configuration. Feature-owned cvars are declared
-// by their features at Provision (§T76); core keeps only render settings.
+// by their features at Provision (§T76); core keeps render + identity + connect
+// settings, all settable from a config file or the console (§C23).
 func NewConfig() *Config {
 	return &Config{
-		MaxFPS:   DefaultMaxFPS,   // cap repaints (§T74); 0 = unlimited
-		LogLines: DefaultLogLines, // log-band rows when visual on (§T88)
+		MaxFPS:         DefaultMaxFPS,   // cap repaints (§T74); 0 = unlimited
+		LogLines:       DefaultLogLines, // log-band rows when visual on (§T88)
+		PlayerName:     "nameless tee",
+		PlayerClan:     "",
+		ConnectTimeout: 30, // seconds (= DefaultConnectTimeout)
 	}
 }
 
@@ -42,6 +49,15 @@ var cvars = []cvar{
 	{"cl_log_lines", "log-band rows when the visual is on (capped at half the height)",
 		func(c *Config) string { return itoa(c.LogLines) },
 		func(c *Config, v string) { c.LogLines = clampAtoi(v, 1, 1000) }},
+	{"player_name", "your player name",
+		func(c *Config) string { return c.PlayerName },
+		func(c *Config, v string) { c.PlayerName = v }},
+	{"player_clan", "your clan tag",
+		func(c *Config) string { return c.PlayerClan },
+		func(c *Config, v string) { c.PlayerClan = v }},
+	{"cl_connect_timeout", "handshake timeout in seconds (login + map download)",
+		func(c *Config) string { return itoa(c.ConnectTimeout) },
+		func(c *Config, v string) { c.ConnectTimeout = clampAtoi(v, 1, 600) }},
 }
 
 // findCvar returns the cvar named name, or nil.

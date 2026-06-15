@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -72,6 +73,9 @@ type App struct {
 	browser        *Browser
 	dialer         func(addr string, ver packet.Version) *client.Client
 	frontendCancel context.CancelFunc // stops RunFrontends of the current session
+
+	pendingAddr string         // connect requested by config before Start (§T89)
+	pendingVer  packet.Version // protocol for the pending connect
 
 	keymap     *Keymap
 	playerName string
@@ -849,8 +853,68 @@ func (a *App) runLocal(line string) {
 	if r.Spectate {
 		a.spectate(r.SpecName)
 	}
+	if r.Connect {
+		a.doConnect(r.ConnectAddr, r.ConnectVer)
+	}
 	if r.Quit {
 		a.Stop()
+	}
+}
+
+// doConnect handles a `connect <addr> [ver]` console/config command (§T89/§T91).
+// Before the dialer exists (config exec at startup) it queues the connect for
+// Start; afterwards it joins immediately. Version comes from the command arg, or
+// defaults to 0.6 (twclient has no auto-detect) — there is no global version
+// flag (§V51).
+func (a *App) doConnect(addr, ver string) {
+	if addr == "" {
+		return
+	}
+	v := packet.Version06
+	if ver == "0.7" {
+		v = packet.Version07
+	}
+	if a.dialer == nil {
+		a.pendingAddr, a.pendingVer = addr, v
+		return
+	}
+	a.Join(addr, v)
+}
+
+// ExecConfig runs a teeworlds-style config file through the console layer at
+// startup (§T89): one `command [args]` per line, `#` comments. Identity/render
+// cvars + a `connect` command are all just console lines.
+func (a *App) ExecConfig(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		a.runLocal(line)
+	}
+	return nil
+}
+
+// Start applies the final config (identity + connect timeout), builds the client
+// factory, and joins a server if the config requested one — otherwise it leaves
+// the greeting/browser up (no auto-connect, §V51). Call after ExecConfig, before
+// Run.
+func (a *App) Start() {
+	name := a.cfg.PlayerName
+	if name == "" {
+		name = "nameless tee"
+	}
+	a.SetName(name)
+	a.SetDialer(a.DefaultDialer(name, a.cfg.PlayerClan, "default"))
+	if a.cfg.ConnectTimeout > 0 {
+		a.SetConnectTimeout(time.Duration(a.cfg.ConnectTimeout) * time.Second)
+	}
+	if a.pendingAddr != "" {
+		a.Join(a.pendingAddr, a.pendingVer)
 	}
 }
 

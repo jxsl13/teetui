@@ -10,16 +10,20 @@ import (
 // the log; Quit asks the app to exit; Chat, when set, is sent as a chat line;
 // Spectate requests spectating SpecName ("" = free view) (§T37).
 type conResult struct {
-	Out      []string
-	Quit     bool
-	Chat     string
-	Spectate bool
-	SpecName string
+	Out         []string
+	Quit        bool
+	Chat        string
+	Spectate    bool
+	SpecName    string
+	Connect     bool   // connect to ConnectAddr (§T89/§T91)
+	ConnectAddr string // "host:port"
+	ConnectVer  string // "0.6" | "0.7" | "" (default 0.6)
 }
 
 // builtinHelp is the per-command help text for the fixed (non-cvar) console
 // commands (← chillerbot console help-text line, §T39).
 var builtinHelp = map[string]string{
+	"connect": "connect <host:port> [0.6|0.7] — connect to a server",
 	"help":    "help [command] — list commands or show help for one",
 	"echo":    "echo <text> — print text to the log",
 	"say":     "say <message> — send a chat message",
@@ -31,7 +35,7 @@ var builtinHelp = map[string]string{
 // consoleCommands is the completion candidate set for the local console (§T15):
 // the built-in commands plus every config cvar, sorted.
 var consoleCommands = func() []string {
-	out := []string{"echo", "exit", "help", "quit", "say", "spec", "version"}
+	out := []string{"connect", "echo", "exit", "help", "quit", "say", "spec", "version"}
 	for _, c := range cvars {
 		out = append(out, c.name)
 	}
@@ -98,6 +102,12 @@ func runConsole(line string, cfg *Config) conResult {
 		return conResult{Chat: rest}
 	case "version":
 		return conResult{Out: []string{"teetui (twclient v0.2.4)"}}
+	case "connect":
+		if rest == "" {
+			return conResult{Out: []string{"usage: connect <host:port> [0.6|0.7]"}}
+		}
+		addr, ver, _ := strings.Cut(rest, " ")
+		return conResult{Connect: true, ConnectAddr: addr, ConnectVer: strings.TrimSpace(ver)}
 	case "spec", "spectate", "pause":
 		return conResult{Spectate: true, SpecName: rest} // rest "" → free view
 	case "quit", "exit":
