@@ -23,6 +23,16 @@ Re-impl chillerbot-ux ncurses `terminalui` as Go terminal client on `github.com/
 - C15: macOS Docker host UDP port-forward BROKEN → host `localhost:8303/8307` connless/connect TIMES OUT. ⊥ test teetui connect from macOS host against docker; run inside compose net (service names) or real server. (← B3)
 - C16: PROCESS (user). any twclient BUG or MISSING functionality found → ALWAYS `gh issue create --repo jxsl13/twclient` (detailed English + repro + observed/expected + env). distinguish teetui-side (fix here) vs twclient-side (file issue). filed: #3 (0.6 registry empty), #4 (Connect ctx=lifetime footgun), #5 (v0.2.3 windows build).
 - C17: RESPONSIVE. UI ! adapt to terminal size + scale live w/ window resize (smaller→lower res, larger→higher res). ALL windows (status/game/log/input) + overlays (scoreboard/help/popup/browser) derived from current `scr.Size()` EACH render — ⊥ fixed-size assumption, ⊥ cached dims. game view scales w/ terminal (⊥ hard `maxGameW`/64×32 cap that wastes big terminals). below a min usable size → single legible "resize" notice, ⊥ garble/panic. resize event → immediate relayout+redraw (tcell cell-diff, C3/C7). (extends V11/V18; supersedes §I.render ≤64×32)
+- C18: CHILLERBOT SCOPE (from chillerbot-ux source diff vs DDNet, analyzed 2026-06-15 @ `~/Desktop/Development/chillerbot-ux` rev 14331d5). teetui = TERMINAL client + chillerbot chat-helper UX. IN-SCOPE parity gaps → §T60-68. EXPLICIT NON-GOALS (⊥ port — out of teetui's terminal/ethics scope):
+  - graphical-only: `cl_render_pic`/playerpics, `cl_no_particles`, `cl_render_laser_head`, `cl_weapon_hud`, `cl_show_speed`, nameplate client-icons, `cl_skin_stealer`+saved colors. (no GUI in terminal)
+  - cheat/automation: `cl_camp_hack` (auto-walk), `cl_spike_tracer`, skin steal. (⊥ cheat)
+  - ABUSIVE — REFUSE: `stresser`/`cl_pentest` (server stress/DoS). ⊥ implement.
+  - telemetry/privacy: `cl_send_online_time` (→zillyhuhn.com), `cl_chillerbot_id`, `cl_send_client_type`/`cl_show_client_type`. ⊥ phone home.
+  - mod-specific: `city`/`cl_show_wallet`, `mmotee`, `vibebot`, in-game `edit_map`/minetee editor/`chiller_editor`. (not core TW/DDNet client)
+  - security risk: `cl_remote_control` (execute whisper-delivered cmds on own client via token). ⊥ remote code exec via chat.
+  - misc low-value: `cl_finish_rename`, `cl_change_tile_notification`, `cl_show_last_killer`, `cl_always_reconnect`/`cl_reconnect_when_empty` (T25 already covers drop→reconnect).
+  NB: NONE of the above ships in teetui, but ALL are user-buildable via the hook API (C19) — teetui gives primitives, user supplies the behavior.
+- C19: EXTENSIBLE. teetui ! expose a stable hook/callback API (§I.extension) so users implement out-of-scope (§C18) behavior themselves WITHOUT patching core: in-process Go `Hook` (events + safe action ctx) + opt-in external command hooks (`~/.config/teetui/hooks/`). hook surface = teetui's existing twclient public API ONLY (V1/V2/V12) — ⊥ raw net/packet, ⊥ DoS/flood primitive. teetui ⊥ SHIP any §C18 feature nor any abusive hook; user-supplied hooks = user responsibility. a hook panic ⊥ crash teetui (recover+disable+log). hooks opt-in, none active by default.
 
 ## §I — interfaces
 
@@ -136,6 +146,32 @@ in-game HUD: live local-tee coords (tile x,y) shown (← transcript).
 chillerbot AFK: headless → detected "tapped out" always; `cl_tapped_out_message` config toggles auto-msg.
 keybinds NOT rebindable yet (chillerbot limitation; ?future config).
 
+### extension / hooks (teetui-specific, exceeds reference — C19)
+Out-of-scope features (§C18) are NOT shipped but ARE user-buildable via a stable
+hook API. teetui provides PRIMITIVES (events + a safe action surface), not policy.
+```
+pkg github.com/jxsl13/teetui/extension     // stable public surface
+type Hook interface {                       // implement any subset (embed NopHook)
+  OnConnect(HookCtx)
+  OnDisconnect(HookCtx, reason string)
+  OnChat(HookCtx, ChatEvent) (suppress bool)   // true → hide line from log
+  OnBroadcast(HookCtx, string) ; OnServerMsg(HookCtx, string)
+  OnKill(HookCtx, KillEvent) ; OnTick(HookCtx, client.TickState)
+  OnKey(HookCtx, Key) (handled bool)           // true → consume key
+}
+type HookCtx interface {                    // SAFE action surface only (V1/V12)
+  SendChat(msg string, team bool) ; Do(client.Action) error
+  Log(style, msg string) ; Roster() []client.PlayerState
+  Config(name string) (string, bool) ; Server() string
+}
+extension.Register(name string, h Hook)     // in-process Go hook (compiled in)
+```
++ EXTERNAL command hooks (opt-in, no recompile): executables in
+`~/.config/teetui/hooks/<event>` fed event JSON on stdin; stdout action lines
+(`say …`, `do …`) parsed back. timeout-bounded, off unless dir present.
+Hook surface = teetui's existing twclient public API ONLY — ⊥ raw packet/net/flood
+primitive (⊥ a DoS amplifier). User hooks run under USER responsibility.
+
 ## §V — invariants
 
 - V1: all server comms via `twclient` pub API only. ⊥ import net6/net7/network/packer from teetui. (C2)
@@ -170,6 +206,15 @@ keybinds NOT rebindable yet (chillerbot limitation; ?future config).
 - V30: layout FULLY responsive — every window rect + EVERY overlay (scoreboard/help/popup/browser) computed from current terminal size each render; resize → immediate relayout+redraw; ⊥ stale dims, ⊥ draw past screen bounds (overlays clamp/reflow to fit), ⊥ crash on any size ≥ min. (extends V11/V18; C17)
 - V31: game render FILLS the available Game rect — camera frame = rect, scales UP and DOWN w/ terminal (larger terminal ⇒ more visible map = higher res); ⊥ hard-capped to fixed 64×32 (wastes big | garbles small); HUD/coords stay in-bounds. (C17, supersedes §I.render cap)
 - V32: below a min usable size (Wmin×Hmin, defined) UI degrades to ONE legible "terminal too small — resize to ≥ WxH" notice; ⊥ negative/zero-width draws, ⊥ panic; growing back ≥ min restores full UI identical to never-shrunk. (C17)
+- V33: auto/H reply triggered ONLY by a real ping (own name highlight, ⊥ self, ⊥ non-ping); reply intent chosen by lang classifier (greeting/ask-to-ask/bye/insult/smalltalk/question-why·how·which·who/no-context-ping) multi-lang (en/de/fr/ru per chillerbot); rate-limited; ⊥ reply-storm. (← chillerbot langparser/replytoping/smalltalk)
+- V34: chat-query answers derive ONLY from teetui state — warlist relation+reason, roster, map/coords; ⊥ fabricate. war-status answer ("is X war?"/"why kill me") = warlist store for that name (consistent w/ scoreboard colors, V14). (← chathelper check_war/list_wars/where)
+- V35: last-ping queue bounded 16, newest-first; H replies newest + can cycle older; eviction ⊥ corrupt/lose order. (← chathelper m_aLastPings)
+- V36: incoming chat spam/insult/user filters hide ONLY matching lines per `cl_chat_spam_filter`(0/1/2)+filter list; ⊥ hide own line, ⊥ hide non-matching; off by default; mode 2 = hide+autoreply. (← chathelper FilterChat/IsSpam)
+- V37: outgoing chat rate-limited via spam-safe send buffer (≤N queued, min interval) — ⊥ flood/trip server mute; FIFO order preserved; full→deterministic queue/drop. (← chathelper SayBuffer)
+- V38: chillpw auto-login reads opt-in local secrets file, matches by server addr, sends pw ONLY to that server; secret ⊥ logged/echoed/saved elsewhere; inactive unless flag+file present. (← chillpw, security)
+- V39: hook API stable+documented (§I.extension); hooks receive events + an action ctx limited to teetui's twclient public surface (V1/V2/V12) — ⊥ raw packet/net/flood, ⊥ DoS amplifier. registered hooks dispatched in deterministic order; OnChat suppress + OnKey handled composable (first true wins, recorded). (C19)
+- V40: a hook (Go or external) that panics / errors / times out ⊥ crash or hang teetui — recovered, logged, that hook disabled for the session; core UI continues. (C19)
+- V41: hooks opt-in — none active by default; §C18 out-of-scope features ⊥ shipped by teetui but ARE implementable via the hook API; teetui ships primitives, ⊥ policy, ⊥ any abusive hook. (C18/C19)
 
 ## §T — tasks
 
@@ -233,6 +278,19 @@ T56|x|B5 mitigation: scoreboard/chat id fallback when roster name empty (verify)
 T57|x|responsive layout: `Compute` scales game view w/ terminal (relax `maxGameW` so large terminals use more width, keep proportional split + min log width + min game width); overlays (scoreboard/help/popup/browser) clamp+reflow to current size, ⊥ overflow|C17,V30,I.windows
 T58|x|render fills Game rect at any size: camera frame = rect (drop 64×32 assumption), DrawGame/DrawGameHalf scale up/down, tee stays centered, HUD/coords in-bounds; test tiny+huge rects|C17,V31,I.render
 T59|x|min-size guard + live resize: below Wmin×Hmin show single "resize to ≥WxH" notice (⊥ garble/panic), restore on grow; EventResize → recompute+immediate redraw (not just Sync); test sub-min + round-trip|C17,V32,V30,V11
+T60|x|lang classifier (port chillerbot `langparser`): FindWord (word-boundary, case-insens), IsGreeting(en/qq/rus)/IsBye/IsInsult/IsAskToAsk(+de)/IsQuestionWhy·How·WhichWhat·WhoWhichWhat; pure pkg, table-tested multi-lang|C18,V33,I.twclient
+T61|.|reply-to-ping engine: replace simple `autoReplies` table — use T60 classifier + multi-lang smalltalk (how-are-you/ca-va/wie-gehts/wbu) + no-context ping→"name ?"; H + auto(cl_auto_reply) reply; rate-limited|C18,V33
+T62|.|chat-query answers from state: war-status ("is X war?"/"why do you kill me"→warlist relation+reason), list wars/clan wars, how-to-join-clan, where(map+tile coords), what-os; answer via chat reply|C18,V34,V14
+T63|.|last-ping queue (16, newest-first, ← chathelper m_aLastPings): H replies newest + cycles older; optional last-ping line in status/HUD (cl_show_last_ping)|C18,V35
+T64|.|incoming chat filters: `cl_chat_spam_filter` 0/1/2 + insult filter + user filter list (console addfilter/listfilter/delfilter); hide matching pings from log; mode2=hide+autoreply; off default|C18,V36
+T65|.|spam-safe outgoing send buffer: rate-limited chat queue (≤8, min interval, ← chathelper SayBuffer) so teetui ⊥ flood/get muted; FIFO; replaces immediate multi-line sends|C18,V37
+T66|.|warlist auto-reload (`cl_war_list_auto_reload` secs): reload warlist/ files on interval (mtime) so external edits apply live; 0=off|C18,V14,I.config
+T67|.|extended warlist chat commands (← chatcommands.h): `!search <name>`, `!create <war\|team\|neutral\|traitor> [folder] <name>`, `!addreason`, `!unfriend`, folder arg parity; extends T22/T24 parseChatCommand|C18,V14
+T68|.|chillpw auto-login (`cl_chillpw`/`cl_password_file`): opt-in local secrets file → on connect match server addr, auto-send rcon/login pw to THAT server only; secret never logged; README security note|C18,V38,I.config
+T69|.|extension API pkg `extension`: `Hook` interface (OnConnect/OnDisconnect/OnChat→suppress/OnBroadcast/OnServerMsg/OnKill/OnTick/OnKey→handled) + `NopHook` embed + `HookCtx` safe action surface (SendChat/Do/Log/Roster/Config/Server) + `Register`; panic-recover wrapper (V40); table-tested|C19,V39,V40,I.extension
+T70|.|wire hook dispatch into App event paths: chat/broadcast/servermsg/kill/tick/connect/disconnect/key call registered hooks in order; honor OnChat suppress (hide line) + OnKey handled (consume); ⊥ break core when no hooks|C19,V39,V41
+T71|.|external command hooks (opt-in): run `~/.config/teetui/hooks/<event>` executables w/ event JSON on stdin, parse stdout action lines (say/do), timeout-bounded, errors isolated (V40); off unless dir present|C19,V40,V41,I.config
+T72|.|docs: README "Extensibility / Hooks" — list §C18 out-of-scope features + HOW to build each via hooks (example Go hook + example external script), security note (user responsibility, no DoS primitive); credit chillerbot features as the inspiration|C19,V41,I.cli
 
 ## §B — bugs
 
