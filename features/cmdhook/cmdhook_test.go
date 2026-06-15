@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/jxsl13/teetui/feature"
-	"github.com/jxsl13/twclient/client"
 )
 
 // recHost records SendChat/Log for assertions.
 type recHost struct {
+	feature.NopHost
 	chats []string
 	team  []string
 	logs  []string
@@ -25,24 +25,7 @@ func (h *recHost) SendChat(msg string, team bool) {
 		h.chats = append(h.chats, msg)
 	}
 }
-func (h *recHost) Do(client.Action) error                                  { return nil }
-func (h *recHost) RconLogin(string)                                        {}
-func (h *recHost) Log(msg string)                                          { h.logs = append(h.logs, msg) }
-func (h *recHost) Roster() []client.PlayerState                            { return nil }
-func (h *recHost) Tick() (client.TickState, bool)                          { return client.TickState{}, false }
-func (h *recHost) PlayerName() string                                      { return "me" }
-func (h *recHost) PlayerClan() string                                      { return "" }
-func (h *recHost) Server() string                                          { return "s:8303" }
-func (h *recHost) DefineConfig(string, string, string)                     {}
-func (h *recHost) Config(string) (string, bool)                            { return "", false }
-func (h *recHost) OnSendChat(func(string, bool) (string, bool))            {}
-func (h *recHost) DefineAction(string, string, string, func())             {}
-func (h *recHost) DefineCommand(string, string, func(string) []string)     {}
-func (h *recHost) AddStatusField(func() string)                            {}
-func (h *recHost) AddNameStyle(func(string, string) (feature.Style, bool)) {}
-func (h *recHost) Provide(string, any)                                     {}
-func (h *recHost) Lookup(string) (any, bool)                               { return nil, false }
-func (h *recHost) DataPath(name string) string                             { return name }
+func (h *recHost) Log(msg string) { h.logs = append(h.logs, msg) }
 
 // §T85: applyHookActions parses the stdout grammar and applies it via the host.
 func TestApplyHookActions(t *testing.T) {

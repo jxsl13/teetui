@@ -1,6 +1,6 @@
 // Package warlist is the war/peace/team feature (← chillerbot warlist, §T78/
 // §T21/§T22/§T24/§T66/§T67/§V14). Self-registering module: it owns the store,
-// applies !commands on outgoing chat (OnSendChat), tints the scoreboard
+// applies !commands on outgoing chat (AddSendChatFilter), tints the scoreboard
 // (AddNameStyle), reloads the file when it changes on disk (OnTick), and Provides
 // the "warlist" service for the chat-query feature.
 package warlist
@@ -53,7 +53,7 @@ func (f *warlistFeature) Provision(h feature.Host) error {
 
 	// Intercept !commands on outgoing chat: apply locally; suppress the send when
 	// cl_silent_chat_commands is on (§V14).
-	h.OnSendChat(func(msg string, team bool) (string, bool) {
+	h.AddSendChatFilter(func(msg string, team bool) (string, bool) {
 		res := parseCommand(msg, f.store)
 		if !res.Handled {
 			return msg, true

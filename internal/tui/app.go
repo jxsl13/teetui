@@ -147,12 +147,10 @@ func NewAppWithScreen(scr tcell.Screen, server string, state *State, input *Inpu
 		featActKey:  map[tcell.Key]func(){},
 		services:    map[string]any{},
 	}
-	// Drive user OnTick hooks from the observer (§T70); guarded so there is zero
-	// per-tick cost when no hooks are registered.
+	// Drive feature OnTick handlers from the observer (§T70/§T76); the dispatch
+	// is a no-op when no feature is registered.
 	a.state.SetTickHook(func(st client.TickState) {
-		if feature.Count() > 0 {
-			feature.FireTick(a.host(), st)
-		}
+		feature.FireTick(a.host(), st) // no-op when no feature is registered
 	})
 	a.loadHistory()
 	if p, err := configDir(); err == nil {
@@ -232,9 +230,7 @@ func (a *App) ShowDisconnect(reason string) {
 	a.mu.Unlock()
 	a.wake()
 
-	if feature.Count() > 0 {
-		feature.FireDisconnect(a.host(), reason) // feature modules (§T76)
-	}
+	feature.FireDisconnect(a.host(), reason) // notify feature modules (§T76)
 	if a.quitting() {
 		return
 	}
@@ -402,9 +398,9 @@ func (a *App) handle(ev tcell.Event) {
 			a.log.ScrollDown(1)
 		}
 	case *tcell.EventKey:
-		// Feature key hooks get first refusal; returning handled consumes the key
-		// before teetui's own handling (§T76/§V39). No hooks → no-op.
-		if feature.Count() > 0 && feature.FireKey(a.host(), featureKey(ev)) {
+		// Features get first refusal on the key (§T76/§V39): a handler returning
+		// true consumes it before teetui's own handling. No-op when none registered.
+		if feature.FireKey(a.host(), featureKey(ev)) {
 			return
 		}
 		switch {
@@ -756,7 +752,7 @@ func (a *App) do(act client.Action) {
 }
 
 // chatLine submits a chat line. Warlist "!" commands are intercepted by the
-// warlist feature's OnSendChat hook inside sendChat (§T78/§V14).
+// warlist feature's AddSendChatFilter hook inside sendChat (§T78/§V14).
 func (a *App) chatLine(text string, team bool) {
 	a.sendChat(text, team)
 }
@@ -1158,10 +1154,8 @@ func (a *App) Join(addr string, ver packet.Version) {
 		a.reconnAttempt.Store(0) // a clean connection resets the attempt count
 		close(stop)              // connected → watchdog must not cancel the live session
 		a.log.Addf(StyleSystem, "connected.")
-		go c.RunFrontends(fctx) // drive observer (render) + controller (input)
-		if feature.Count() > 0 {
-			feature.FireConnect(a.host()) // feature modules (§T76)
-		}
+		go c.RunFrontends(fctx)       // drive observer (render) + controller (input)
+		feature.FireConnect(a.host()) // notify feature modules (§T76)
 		a.wake()
 	}()
 }

@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/jxsl13/teetui/feature"
-	"github.com/jxsl13/twclient/client"
 )
 
 // §T83/§V35: the store is bounded newest-first; NextReply walks newest→older and
@@ -43,6 +42,7 @@ func TestPingStore(t *testing.T) {
 }
 
 type fakeHost struct {
+	feature.NopHost
 	cfg     map[string]string
 	svc     map[string]any
 	statusF []func() string
@@ -50,25 +50,12 @@ type fakeHost struct {
 
 func newFakeHost() *fakeHost { return &fakeHost{cfg: map[string]string{}, svc: map[string]any{}} }
 
-func (h *fakeHost) SendChat(string, bool)                                   {}
-func (h *fakeHost) Do(client.Action) error                                  { return nil }
-func (h *fakeHost) RconLogin(string)                                        {}
-func (h *fakeHost) Log(string)                                              {}
-func (h *fakeHost) Roster() []client.PlayerState                            { return nil }
-func (h *fakeHost) Tick() (client.TickState, bool)                          { return client.TickState{}, false }
-func (h *fakeHost) PlayerName() string                                      { return "nameless" }
-func (h *fakeHost) PlayerClan() string                                      { return "" }
-func (h *fakeHost) Server() string                                          { return "" }
-func (h *fakeHost) DefineConfig(name, def, help string)                     { h.cfg[name] = def }
-func (h *fakeHost) Config(name string) (string, bool)                       { v, ok := h.cfg[name]; return v, ok }
-func (h *fakeHost) OnSendChat(func(string, bool) (string, bool))            {}
-func (h *fakeHost) DefineAction(string, string, string, func())             {}
-func (h *fakeHost) DefineCommand(string, string, func(string) []string)     {}
-func (h *fakeHost) AddStatusField(fn func() string)                         { h.statusF = append(h.statusF, fn) }
-func (h *fakeHost) AddNameStyle(func(string, string) (feature.Style, bool)) {}
-func (h *fakeHost) Provide(name string, svc any)                            { h.svc[name] = svc }
-func (h *fakeHost) Lookup(name string) (any, bool)                          { v, ok := h.svc[name]; return v, ok }
-func (h *fakeHost) DataPath(name string) string                             { return name }
+func (h *fakeHost) PlayerName() string                  { return "nameless" }
+func (h *fakeHost) DefineConfig(name, def, help string) { h.cfg[name] = def }
+func (h *fakeHost) Config(name string) (string, bool)   { v, ok := h.cfg[name]; return v, ok }
+func (h *fakeHost) AddStatusField(fn func() string)     { h.statusF = append(h.statusF, fn) }
+func (h *fakeHost) Provide(name string, svc any)        { h.svc[name] = svc }
+func (h *fakeHost) Lookup(name string) (any, bool)      { v, ok := h.svc[name]; return v, ok }
 
 // §T83: the feature provisions the pings service + status field and queues pings.
 func TestLastPingFeature(t *testing.T) {

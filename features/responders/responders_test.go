@@ -4,35 +4,20 @@ import (
 	"testing"
 
 	"github.com/jxsl13/teetui/feature"
-	"github.com/jxsl13/twclient/client"
 )
 
 type fh struct {
+	feature.NopHost
 	cfg   map[string]string
 	chats []string
 }
 
 func newFH() *fh { return &fh{cfg: map[string]string{}} }
 
-func (h *fh) SendChat(msg string, team bool)                          { h.chats = append(h.chats, msg) }
-func (h *fh) Do(client.Action) error                                  { return nil }
-func (h *fh) RconLogin(string)                                        {}
-func (h *fh) Log(string)                                              {}
-func (h *fh) Roster() []client.PlayerState                            { return nil }
-func (h *fh) Tick() (client.TickState, bool)                          { return client.TickState{}, false }
-func (h *fh) PlayerName() string                                      { return "nameless" }
-func (h *fh) PlayerClan() string                                      { return "" }
-func (h *fh) Server() string                                          { return "" }
-func (h *fh) DefineConfig(name, def, help string)                     { h.cfg[name] = def }
-func (h *fh) Config(name string) (string, bool)                       { v, ok := h.cfg[name]; return v, ok }
-func (h *fh) OnSendChat(func(string, bool) (string, bool))            {}
-func (h *fh) DefineAction(string, string, string, func())             {}
-func (h *fh) DefineCommand(string, string, func(string) []string)     {}
-func (h *fh) AddStatusField(func() string)                            {}
-func (h *fh) AddNameStyle(func(string, string) (feature.Style, bool)) {}
-func (h *fh) Provide(string, any)                                     {}
-func (h *fh) Lookup(string) (any, bool)                               { return nil, false }
-func (h *fh) DataPath(name string) string                             { return name }
+func (h *fh) SendChat(msg string, team bool)      { h.chats = append(h.chats, msg) }
+func (h *fh) PlayerName() string                  { return "nameless" }
+func (h *fh) DefineConfig(name, def, help string) { h.cfg[name] = def }
+func (h *fh) Config(name string) (string, bool)   { v, ok := h.cfg[name]; return v, ok }
 
 // §T82/§V33: responders only fire on a ping, only when enabled, and the
 // auto-reply template expands %n.

@@ -122,9 +122,9 @@ func (h appHost) Config(name string) (string, bool) {
 	return "", false
 }
 
-// OnSendChat appends an outgoing-chat transform to the chain (§T76): each fn may
-// edit the message or cancel the send (return send=false).
-func (h appHost) OnSendChat(fn func(msg string, team bool) (string, bool)) {
+// AddSendChatFilter appends an outgoing-chat transform to the chain (§T76): each
+// fn may edit the message or cancel the send (return send=false).
+func (h appHost) AddSendChatFilter(fn func(msg string, team bool) (string, bool)) {
 	h.a.sendChatHook = append(h.a.sendChatHook, fn)
 }
 

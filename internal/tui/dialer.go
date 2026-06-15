@@ -40,11 +40,9 @@ func (a *App) DefaultDialer(name, clan, skin string) func(addr string, ver packe
 			// Incoming chat filtering now lives in the chatfilter feature, which
 			// suppresses via OnChat below (§T81). A hook/feature may suppress the
 			// line (§T70/§T76/§V39); a suppressed line is not logged or ping-tracked.
-			if feature.Count() > 0 {
-				ev := feature.ChatEvent{ClientID: e.ClientID, Name: from, Msg: e.Msg, Team: e.Team != 0}
-				if feature.FireChat(a.host(), ev) {
-					return
-				}
+			ev := feature.ChatEvent{ClientID: e.ClientID, Name: from, Msg: e.Msg, Team: e.Team != 0}
+			if feature.FireChat(a.host(), ev) {
+				return // a feature suppressed the line (e.g. chatfilter)
 			}
 			who := from
 			if who == "" {
@@ -54,23 +52,17 @@ func (a *App) DefaultDialer(name, clan, skin string) func(addr string, ver packe
 			// ping tracking now lives in features/lastping (its OnChat fires above).
 		})
 		c.OnServerMsg(func(_ *client.Client, e packet.EventServerMsg) {
-			if feature.Count() > 0 {
-				feature.FireServerMsg(a.host(), e.Msg)
-			}
+			feature.FireServerMsg(a.host(), e.Msg)
 			a.log.Addf(StyleSystem, "*** %s", e.Msg)
 		})
 		c.OnBroadcast(func(_ *client.Client, e packet.EventBroadcast) {
-			if feature.Count() > 0 {
-				feature.FireBroadcast(a.host(), e.Text)
-			}
+			feature.FireBroadcast(a.host(), e.Text)
 			a.log.Addf(StyleSystem, ">> %s", e.Text)
 		})
 		c.OnKill(func(_ *client.Client, e packet.EventKill) {
-			if feature.Count() > 0 {
-				feature.FireKill(a.host(), feature.KillEvent{
-					Killer: e.Killer, Victim: e.Victim, Weapon: int(e.Weapon),
-				})
-			}
+			feature.FireKill(a.host(), feature.KillEvent{
+				Killer: e.Killer, Victim: e.Victim, Weapon: int(e.Weapon),
+			})
 		})
 		c.OnRconLine(func(_ *client.Client, e packet.EventRconLine) {
 			a.log.Addf(StyleSystem, "rcon> %s", e.Line)

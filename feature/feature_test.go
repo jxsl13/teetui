@@ -3,12 +3,11 @@ package feature
 import (
 	"errors"
 	"testing"
-
-	"github.com/jxsl13/twclient/client"
 )
 
-// fakeHost is a minimal Host capturing what features do.
+// fakeHost embeds NopHost and overrides only the bits these tests assert.
 type fakeHost struct {
+	NopHost
 	chats   []string
 	logs    []string
 	configs map[string]string
@@ -16,25 +15,10 @@ type fakeHost struct {
 
 func newFakeHost() *fakeHost { return &fakeHost{configs: map[string]string{}} }
 
-func (h *fakeHost) SendChat(msg string, team bool)                      { h.chats = append(h.chats, msg) }
-func (h *fakeHost) Do(client.Action) error                              { return nil }
-func (h *fakeHost) RconLogin(string)                                    {}
-func (h *fakeHost) Log(msg string)                                      { h.logs = append(h.logs, msg) }
-func (h *fakeHost) Roster() []client.PlayerState                        { return nil }
-func (h *fakeHost) Tick() (client.TickState, bool)                      { return client.TickState{}, false }
-func (h *fakeHost) PlayerName() string                                  { return "me" }
-func (h *fakeHost) PlayerClan() string                                  { return "" }
-func (h *fakeHost) Server() string                                      { return "test:8303" }
-func (h *fakeHost) DefineConfig(name, def, help string)                 { h.configs[name] = def }
-func (h *fakeHost) Config(name string) (string, bool)                   { v, ok := h.configs[name]; return v, ok }
-func (h *fakeHost) OnSendChat(func(string, bool) (string, bool))        {}
-func (h *fakeHost) DefineAction(string, string, string, func())         {}
-func (h *fakeHost) DefineCommand(string, string, func(string) []string) {}
-func (h *fakeHost) AddStatusField(func() string)                        {}
-func (h *fakeHost) AddNameStyle(func(string, string) (Style, bool))     {}
-func (h *fakeHost) Provide(string, any)                                 {}
-func (h *fakeHost) Lookup(string) (any, bool)                           { return nil, false }
-func (h *fakeHost) DataPath(name string) string                         { return name }
+func (h *fakeHost) SendChat(msg string, team bool)      { h.chats = append(h.chats, msg) }
+func (h *fakeHost) Log(msg string)                      { h.logs = append(h.logs, msg) }
+func (h *fakeHost) DefineConfig(name, def, help string) { h.configs[name] = def }
+func (h *fakeHost) Config(name string) (string, bool)   { v, ok := h.configs[name]; return v, ok }
 
 // recFeat records events + declares a cvar at Provision.
 type recFeat struct {

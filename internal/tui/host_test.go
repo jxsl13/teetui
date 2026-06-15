@@ -19,7 +19,7 @@ func (f *tfeat) Provision(h feature.Host) error {
 	h.DefineAction("tfeat", "g", "demo action", func() { f.acted = true })
 	h.AddStatusField(func() string { return "TF-OK" })
 	h.DefineCommand("tcmd", "demo cmd", func(args string) []string { return []string{"tcmd-ran:" + args} })
-	h.OnSendChat(func(msg string, team bool) (string, bool) {
+	h.AddSendChatFilter(func(msg string, team bool) (string, bool) {
 		if msg == "block" {
 			return msg, false
 		}

@@ -188,11 +188,12 @@ pkg github.com/jxsl13/teetui/feature        // public module SDK
 type Feature interface {
   Name() string                              // unique id (← ModuleInfo.ID / format name)
   Provision(Host) error                      // declare config/actions/status, look up deps
-  Hooks                                       // embed NopFeature for unused events:
+  Events                                      // embed NopFeature for unused events:
 }                                             //  OnConnect/OnDisconnect/OnChat(→suppress)/
                                               //  OnBroadcast/OnServerMsg/OnKill/OnTick/OnKey(→handled)
 feature.Register(Feature)                     // called in each feature pkg init()
 feature.Registered() []Feature
+// NopHost: a no-op Host to embed in tests/harnesses (override only what you use)
 
 type Host interface {                          // the SUFFICIENT capability surface
   // actions (safe twclient API only, V1/V12 — no raw net/DoS, V39)
@@ -202,8 +203,8 @@ type Host interface {                          // the SUFFICIENT capability surf
   PlayerName() string; PlayerClan() string; Server() string
   // config: each feature OWNS its cvars (declared at Provision, V46)
   DefineConfig(name, def, help string); Config(name string) (string, bool)
-  // outgoing-chat interception chain (for !commands / silent-chat, returns edited+send)
-  OnSendChat(func(msg string, team bool) (out string, send bool))
+  // outgoing-chat filter chain (for !commands / silent-chat, returns edited+send)
+  AddSendChatFilter(func(msg string, team bool) (out string, send bool))
   // named, REBINDABLE actions (respect keymap, V19) + default key (for H, etc.)
   DefineAction(name, defaultKey, help string, run func())
   // F1 console commands (for !filter mgmt, `team`/`join`, … — replaces inline core cmds)

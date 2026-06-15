@@ -66,8 +66,9 @@ type Host interface {
 	// config: a feature OWNS its cvars, declared at Provision (§V46)
 	DefineConfig(name, def, help string)
 	Config(name string) (string, bool)
-	// outgoing-chat interception chain (for !commands / silent-chat)
-	OnSendChat(fn func(msg string, team bool) (out string, send bool))
+	// outgoing-chat filter chain (for !commands / silent-chat): each fn may
+	// rewrite the line or cancel the send (send=false)
+	AddSendChatFilter(fn func(msg string, team bool) (out string, send bool))
 	// named, rebindable actions (respect the keymap, §V19) + a default key
 	DefineAction(name, defaultKey, help string, run func())
 	// F1 console commands (args string → output lines)
@@ -84,9 +85,10 @@ type Host interface {
 	DataPath(name string) string
 }
 
-// Hooks is the event set a feature can handle; embed NopFeature for the rest.
-// OnChat returning true suppresses the line; OnKey returning true consumes it.
-type Hooks interface {
+// Events is the set of event handlers a feature can implement; embed NopFeature
+// to default the ones you don't need. OnChat returning true suppresses the line;
+// OnKey returning true consumes the key.
+type Events interface {
 	OnConnect(Host)
 	OnDisconnect(Host, string)
 	OnChat(Host, ChatEvent) (suppress bool)
@@ -98,11 +100,11 @@ type Hooks interface {
 }
 
 // Feature is a registerable module: an identity, a one-time Provision, and the
-// event Hooks.
+// event handlers.
 type Feature interface {
 	Name() string
 	Provision(Host) error
-	Hooks
+	Events
 }
 
 // PingStore is the cross-feature service the lastping feature Provides (under the
@@ -126,7 +128,7 @@ type Warlist interface {
 	ClansWith(relation string) []string
 }
 
-// NopFeature is a no-op Hooks implementation; embed it so a feature only
+// NopFeature is a no-op Events implementation; embed it so a feature only
 // overrides the events it cares about. (It does NOT supply Name/Provision —
 // those are mandatory per feature.)
 type NopFeature struct{}
@@ -139,3 +141,28 @@ func (NopFeature) OnServerMsg(Host, string)      {}
 func (NopFeature) OnKill(Host, KillEvent)        {}
 func (NopFeature) OnTick(Host, client.TickState) {}
 func (NopFeature) OnKey(Host, Key) bool          { return false }
+
+// NopHost is a Host that does nothing and returns zero values. Embed it in tests
+// (or a minimal feature harness) and override only the methods you exercise, so a
+// fake need not re-implement the whole Host surface.
+type NopHost struct{}
+
+func (NopHost) SendChat(string, bool)                               {}
+func (NopHost) Do(client.Action) error                              { return nil }
+func (NopHost) RconLogin(string)                                    {}
+func (NopHost) Log(string)                                          {}
+func (NopHost) Roster() []client.PlayerState                        { return nil }
+func (NopHost) Tick() (client.TickState, bool)                      { return client.TickState{}, false }
+func (NopHost) PlayerName() string                                  { return "" }
+func (NopHost) PlayerClan() string                                  { return "" }
+func (NopHost) Server() string                                      { return "" }
+func (NopHost) DefineConfig(string, string, string)                 {}
+func (NopHost) Config(string) (string, bool)                        { return "", false }
+func (NopHost) AddSendChatFilter(func(string, bool) (string, bool)) {}
+func (NopHost) DefineAction(string, string, string, func())         {}
+func (NopHost) DefineCommand(string, string, func(string) []string) {}
+func (NopHost) AddStatusField(func() string)                        {}
+func (NopHost) AddNameStyle(func(string, string) (Style, bool))     {}
+func (NopHost) Provide(string, any)                                 {}
+func (NopHost) Lookup(string) (any, bool)                           { return nil, false }
+func (NopHost) DataPath(name string) string                         { return name }
