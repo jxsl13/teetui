@@ -938,6 +938,6 @@ func (a *App) drawInput(r Rect) {
 	default:
 		a.scr.HideCursor()
 		drawStr(a.scr, r.X, r.Y, r.W, StyleSystem,
-			" [t]chat [y]team [F1]console [F2]rcon [v]visual [k]kill [e]emote [Tab]board [?]help [q]quit ")
+			" [t]chat [y]team [B]browser [F1]console [F2]rcon [v]visual [k]kill [e]emote [Tab]board [?]help [q]quit ")
 	}
 }

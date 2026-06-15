@@ -28,17 +28,22 @@ teetui is an independent Go re-implementation of the terminal UI shipped by
 - **Chat** — all chat (`t`) and team chat (`y`) with:
   - readline editing: cursor movement, `Ctrl-U` / `Ctrl-K` / `Ctrl-W` kill;
   - input history with `Up` / `Down`, **persisted across restarts**;
-  - reverse history search with `Ctrl-R`.
+  - reverse history search with `Ctrl-R`;
+  - `Tab` completion of player names (chat) and console commands.
 - **Local console** (`F1`) — `help`, `echo`, `say`, `version`, `quit`, with its
   own history.
 - **Remote console / rcon** (`F2`) — log in with a masked password, send admin
   commands, and see rcon output in the log.
 - **Server browser** (`B`) — fetches the live master-server list, with:
-  - category tabs **Internet / DDNet / KoG / Vanilla** (`←` / `→`);
+  - category tabs **Internet / LAN / Favorites / DDNet / KoG / Vanilla**
+    (`←` / `→`); the LAN tab probes local ports;
   - incremental search (`/`);
   - select with `↑` / `↓` and join with `Enter` (reconnects to the chosen
     server);
+  - mark favorites with `f` (saved to `~/.config/teetui/favorites.txt`);
   - a marker for password-protected servers.
+- **Spectate** — from the local console (`F1`): `spec <name>` to spectate a
+  player, or `spec` / `pause` for free view.
 - **Warlist** — mark players as war / peace / team from chat with `!war <name>`,
   `!peace <name>`, `!team <name>`, `!del <name>` (`!help` lists them). Marked
   players are colored in the scoreboard; the list is saved to

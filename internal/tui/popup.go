@@ -31,12 +31,12 @@ func greetingPopup() Popup {
 		Body: []string{
 			"cross-platform terminal Teeworlds/DDNet client",
 			"",
-			"?   help          B   server browser (TODO)",
+			"?   help          B   server browser",
 			"t   chat          F1  local console",
 			"y   team chat     F2  remote console (rcon)",
 			"v   visual        k   self-kill",
 			"",
-			"press Enter to close",
+			"press B for browser, ? for help, Enter to close",
 		},
 	}
 }

@@ -38,7 +38,7 @@ feature is only marked **done** here when its owning task is `x` in SPEC.md.
 | Sub-cell render detail (half-block / braille) | no | no | T46 | todo |
 | Tee control: move / jump / hook | yes | partial (aim/fire/weapon TODO) | T16 | partial |
 | Self-kill (`k`), emote (`e`), vote (`F5`/`F6`) | yes | yes | T36 | done |
-| Spectate / pause-follow | yes | no | T37 | todo |
+| Spectate / pause-follow | yes | yes (console `spec`/`pause [name]`) | T37 | done |
 | Auto-reply to last ping (`H`) + known-phrase table | yes | yes | T23 | done |
 | Warlist store: `!war`/`!peace`/`!team`/`!del` + scoreboard coloring + persist | yes | yes | T21 / T22 | done |
 | Warlist advanced (folders, bundles, reasons, clan war) | yes | no | T24 | todo |
@@ -69,8 +69,8 @@ intentionally diverges:
   "tapped out" message (`cl_tapped_out_message`) is intentionally **off** —
   chillerbot is a headless bot that is always detected as tapped out, whereas
   teetui is an interactive client, so auto-AFK is left disabled by default (T40).
-- **Map download progress bar** (T33), **spectate / pause-follow** (T37) and
-  **warlist advanced mode** (T24) are not yet implemented.
+- **Map download progress bar** (T33) and **warlist advanced mode** (T24) are
+  not yet implemented.
 - **Rebindable keys** (T42) and reconciliation of the foundation keymap to the
   §I binding table (T41) are still TODO; current keys (`t`/`y` chat, `h` hook,
   `q` quit) diverge from the target `?`/`B`/`F1`/`F2`/`T`/`Z`/`H`/`V`/`K` table.
