@@ -192,9 +192,9 @@ T20|x|rcon: RCON mode (F2) → RconLogin (masked pw, off-loop) + Rcon send + OnR
 T21|x|warlist store (simple): war/peace/team/del + scoreboard name coloring + persist ~/.config/teetui/warlist.txt (← warlist.cpp). in-game nameplate N/A (no names in tile view)|V14
 T22|x|chat commands `!war/!peace/!team/!del/!help` parse + apply via parseChatCommand, `cl_silent_chat_commands` default on (← chatcommand.cpp)|V14
 T23|x|auto-reply: `H` reply-to-last-ping + known-phrase table; ping detect via name in OnChat (← chathelper/replytoping.cpp)|I.twclient
-T24|~|warlist advanced mode: folders, multi-name bundle, war reasons, clan war (← warlist_commands_advanced.cpp)|V14
+T24|x|warlist advanced mode: folders, multi-name bundle, war reasons, clan war (← warlist_commands_advanced.cpp)|V14
 T25|~|disconnect/kick handling: OnDisconnect→DISCONNECTED popup + wake DONE; auto-reconnect status UI TODO|V11
-T26|~|bench render hot path; prove zero steady alloc; optimize proven hot cells|C7,V7
+T26|x|bench render hot path; prove zero steady alloc; optimize proven hot cells|C7,V7
 T27|~|cross-OS smoke: build+run Linux/Windows(pwsh)/macOS terminals, color + glyph check|C3,C4,V5,V6
 T28|x|help page content + key cheatsheet, `?`/Esc toggle, always escapable (← RenderHelpPage)|I.windows,V17
 T29|x|write README.md: usage + full attributions/credits/references (chillerbot-ux/ChillerDragon, DDNet, Teeworlds, twclient, tcell, runewidth) + licenses|V15,I.cli
@@ -214,7 +214,7 @@ T42|x|rebindable keymap: config file load/save, default = §I table, runtime bin
 T43|~|render-quality: Start/Finish/Checkpoint colored via MapView booleans DONE (Tele/Boost via class); sub-cell → T46; smooth camera TODO|C11,V20,I.render
 T44|x|parity-checklist verify: each §T30-41 feature ≥ chillerbot; doc gaps|C10,V20
 T45|x|browser LAN + Favorites: favorites persist ~/.config/teetui/favorites.txt + `f` toggle + Favorites tab; LAN = connless probe of localhost ports (subnet broadcast would need twclient support)|I.windows,V13
-T46|~|render sub-cell detail: half-block ▀▄ (2 tiles/cell vertical) | braille mode for finer map; toggle/auto (completes T43 sub-cell)|C11,V20,I.render
+T46|x|render sub-cell detail: half-block ▀▄ (2 tiles/cell vertical) | braille mode for finer map; toggle/auto (completes T43 sub-cell)|C11,V20,I.render
 T47|x|render checkpoint tile color (orange, glyph 'C') via twclient v0.2.2 `MapView.Checkpoint`; precedence finish>start>checkpoint (← chillerbot colorCheckpoint)|C11,I.render
 T48|x|e2e harness `e2e/` mirroring twclient: docker-compose (ddnet 0.6+0.7-sixup, teeworlds7 vanilla 0.7, Dockerfiles from source), gated `-tags e2e`+`TW_E2E`, service-name addrs; test connects each + RunFrontends + asserts snapshot ticks + roster|C14,V22,V23
 T49|x|CI/CD e2e job: build server images (matrix), run `go test -tags e2e ./e2e/...` IN-NETWORK + race + coverage profile + per-pkg %; mirror twclient `.github/workflows/ci.yml`|C14,V23

@@ -58,6 +58,7 @@ type App struct {
 	compStart   int
 
 	visual     bool
+	subcell    bool // half-block sub-cell map render (§T46)
 	help       bool
 	scoreboard bool
 	hookOn     bool
@@ -375,6 +376,8 @@ func (a *App) doAction(act KeyAction) {
 		a.help = !a.help
 	case actVisual:
 		a.visual = !a.visual
+	case actSubcellToggle:
+		a.subcell = !a.subcell
 	case actBrowser:
 		a.openBrowser()
 	case actKill:
@@ -971,7 +974,11 @@ func (a *App) draw() {
 	st, have := a.state.Get()
 
 	if a.visual {
-		DrawGame(a.scr, lay.Game.X, lay.Game.Y, lay.Game.W, lay.Game.H, st)
+		if a.subcell {
+			DrawGameHalf(a.scr, lay.Game.X, lay.Game.Y, lay.Game.W, lay.Game.H, st)
+		} else {
+			DrawGame(a.scr, lay.Game.X, lay.Game.Y, lay.Game.W, lay.Game.H, st)
+		}
 		if a.scoreboard && have {
 			DrawScoreboard(a.scr, lay.Game, st, a.warlist)
 		}
@@ -1024,6 +1031,6 @@ func (a *App) drawInput(r Rect) {
 	default:
 		a.scr.HideCursor()
 		drawStr(a.scr, r.X, r.Y, r.W, StyleSystem,
-			" [t]chat [B]browser [F1/F2]console [v]visual [k]kill [1-6/f]weapon [R]reconnect [Tab]board [?]help [q]quit ")
+			" [t]chat [B]browser [F1/F2]console [v]visual [V]detail [k]kill [1-6/f]weapon [R]reconnect [Tab]board [?]help [q]quit ")
 	}
 }

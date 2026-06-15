@@ -28,6 +28,33 @@ var (
 	StyleCheckpoint = fg(255, 180, 0) // race checkpoint — orange (← chillerbot)
 )
 
+// halfBlockCell composes one terminal cell that packs two stacked map rows into
+// the upper and lower halves of the cell, doubling the vertical resolution of the
+// map render (§C11/§V20, sub-cell detail). The cell always draws the upper-half
+// block '▀' so its foreground paints the top half and its background paints the
+// bottom half; for the bottom-only case it uses the lower-half block '▄' instead.
+//
+//	neither drawn → space (default style)
+//	top only      → '▀' fg=top
+//	bottom only   → '▄' fg=bottom
+//	both          → '▀' fg=top, bg=bottom
+//
+// It is a pure function so it is table-tested.
+func halfBlockCell(topDraw bool, topStyle tcell.Style, botDraw bool, botStyle tcell.Style) (rune, tcell.Style) {
+	topFg, _, _ := topStyle.Decompose()
+	botFg, _, _ := botStyle.Decompose()
+	switch {
+	case topDraw && botDraw:
+		return '▀', tcell.StyleDefault.Foreground(topFg).Background(botFg)
+	case topDraw:
+		return '▀', tcell.StyleDefault.Foreground(topFg)
+	case botDraw:
+		return '▄', tcell.StyleDefault.Foreground(botFg)
+	default:
+		return ' ', tcell.StyleDefault
+	}
+}
+
 // specialGlyph returns the glyph/style overlay for race start/finish/checkpoint
 // tiles, which MapView.Tile does not classify (§T43/§T47). These render on top
 // of the base tile class so the route is readable beyond the chillerbot

@@ -39,6 +39,7 @@ const (
 	actMoveStop
 	actJump
 	actFire
+	actSubcellToggle
 )
 
 // actionOrder is the canonical iteration order for deterministic Save output.
@@ -46,7 +47,7 @@ var actionOrder = []KeyAction{
 	actHelp, actQuit, actBrowser, actChat, actTeamChat, actLocalConsole,
 	actRemoteConsole, actVisual, actKill, actEmote, actScoreboard, actAutoReply,
 	actReconnect, actVoteYes, actVoteNo, actHook, actMoveLeft, actMoveRight,
-	actMoveStop, actJump, actFire,
+	actMoveStop, actJump, actFire, actSubcellToggle,
 }
 
 // actionNames is the persisted token for each action.
@@ -58,6 +59,7 @@ var actionNames = map[KeyAction]string{
 	actReconnect: "reconnect", actVoteYes: "vote_yes", actVoteNo: "vote_no",
 	actHook: "hook", actMoveLeft: "move_left", actMoveRight: "move_right",
 	actMoveStop: "move_stop", actJump: "jump", actFire: "fire",
+	actSubcellToggle: "subcell",
 }
 
 // actionByName is the reverse of actionNames.
@@ -112,7 +114,7 @@ func DefaultKeymap() *Keymap {
 	k.bindKey(tcell.KeyF1, actLocalConsole)
 	k.bindKey(tcell.KeyF2, actRemoteConsole)
 	k.bindRune('v', actVisual)
-	k.bindRune('V', actVisual)
+	k.bindRune('V', actSubcellToggle) // §T46 half-block sub-cell render toggle
 	k.bindRune('k', actKill)
 	k.bindRune('K', actKill)
 	k.bindRune('e', actEmote)

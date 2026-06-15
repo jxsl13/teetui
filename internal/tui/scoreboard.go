@@ -63,7 +63,9 @@ func scoreRowStyle(p client.PlayerState, localID int, w *Warlist) tcell.Style {
 		return StyleSelf
 	}
 	if w != nil {
-		if st, ok := w.Style(p.Name); ok {
+		// Clan war colors players too: a per-name relation wins, else the relation
+		// of the player's clan tag applies (§T24/§V14).
+		if st, ok := w.EffectiveStyle(p.Name, p.Clan); ok {
 			return st
 		}
 	}
