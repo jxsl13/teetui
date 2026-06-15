@@ -159,17 +159,9 @@ func TestParseChatCommandAdvanced(t *testing.T) {
 	}
 }
 
-// §T23/§T40: auto-reply matches known phrases; ping detection is name-based.
+// §T23/§T61: ping detection is name-based; reply composition is covered in
+// autoreply_test.go.
 func TestAutoReply(t *testing.T) {
-	if r, ok := autoReply("hello there nameless"); !ok || r != "hello" {
-		t.Errorf("hello reply = %q ok=%v", r, ok)
-	}
-	if r, ok := autoReply("how are you?"); !ok || r != "good, you?" {
-		t.Errorf("how-are-you reply = %q", r)
-	}
-	if _, ok := autoReply("totally unrelated"); ok {
-		t.Error("no match should be false")
-	}
 	if !containsName("hey Nameless wanna trade", "nameless") {
 		t.Error("ping detection case-insensitive failed")
 	}

@@ -14,14 +14,18 @@ type Config struct {
 	SilentChatCmds bool   // apply !commands locally without sending them (§V14)
 	TappedOut      bool   // auto-reply with TappedOutText when pinged (§T40)
 	TappedOutText  string // the auto tapped-out reply
+	AutoReply      bool   // auto-reply with AutoReplyMsg on every ping (§T61)
+	AutoReplyMsg   string // cl_auto_reply_msg template (%n → author)
 }
 
-// NewConfig returns the default configuration (§T39/§T40 defaults).
+// NewConfig returns the default configuration (§T39/§T40/§T61 defaults).
 func NewConfig() *Config {
 	return &Config{
 		SilentChatCmds: true, // cl_silent_chat_commands default on (§V14)
 		TappedOut:      false,
 		TappedOutText:  "I'm currently tapped out (afk)",
+		AutoReply:      false,
+		AutoReplyMsg:   "%n (teetui auto reply)",
 	}
 }
 
@@ -45,6 +49,12 @@ var cvars = []cvar{
 	{"cl_tapped_out_message_text", "the text sent by the tapped-out auto-reply",
 		func(c *Config) string { return c.TappedOutText },
 		func(c *Config, v string) { c.TappedOutText = v }},
+	{"cl_auto_reply", "auto-reply with cl_auto_reply_msg on every ping (0/1)",
+		func(c *Config) string { return b2s(c.AutoReply) },
+		func(c *Config, v string) { c.AutoReply = s2b(v) }},
+	{"cl_auto_reply_msg", "auto-reply template; %n = the pinger's name",
+		func(c *Config) string { return c.AutoReplyMsg },
+		func(c *Config, v string) { c.AutoReplyMsg = v }},
 }
 
 // findCvar returns the cvar named name, or nil.
