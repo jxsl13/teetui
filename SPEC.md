@@ -290,7 +290,7 @@ T68|x|chillpw auto-login (`cl_chillpw`/`cl_password_file`): opt-in local secrets
 T69|x|extension API pkg `extension`: `Hook` interface (OnConnect/OnDisconnect/OnChat→suppress/OnBroadcast/OnServerMsg/OnKill/OnTick/OnKey→handled) + `NopHook` embed + `HookCtx` safe action surface (SendChat/Do/Log/Roster/Config/Server) + `Register`; panic-recover wrapper (V40); table-tested|C19,V39,V40,I.extension
 T70|x|wire hook dispatch into App event paths: chat/broadcast/servermsg/kill/tick/connect/disconnect/key call registered hooks in order; honor OnChat suppress (hide line) + OnKey handled (consume); ⊥ break core when no hooks|C19,V39,V41
 T71|x|external command hooks (opt-in): run `~/.config/teetui/hooks/<event>` executables w/ event JSON on stdin, parse stdout action lines (say/do), timeout-bounded, errors isolated (V40); off unless dir present|C19,V40,V41,I.config
-T72|.|docs: README "Extensibility / Hooks" — list §C18 out-of-scope features + HOW to build each via hooks (example Go hook + example external script), security note (user responsibility, no DoS primitive); credit chillerbot features as the inspiration|C19,V41,I.cli
+T72|x|docs: README "Extensibility / Hooks" — list §C18 out-of-scope features + HOW to build each via hooks (example Go hook + example external script), security note (user responsibility, no DoS primitive); credit chillerbot features as the inspiration|C19,V41,I.cli
 
 ## §B — bugs
 
