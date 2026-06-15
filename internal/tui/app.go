@@ -3,7 +3,6 @@ package tui
 import (
 	"context"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -582,65 +581,11 @@ func (a *App) doAction(act KeyAction) {
 	case actHook:
 		a.hookOn = !a.hookOn
 		a.input.SetHook(a.hookOn)
-	case actAutoReply:
-		a.autoReplyPing()
 	case actReconnect:
 		a.reconnect()
 	case actFire:
 		a.input.Fire()
 	}
-}
-
-// autoReplyPing replies to the most recent message that pinged us (§T23/§T61/
-// §T62, bound to H). It first tries a state-derived query answer (war status,
-// where, OS, …, §T62), then the canned context reply (§T61), then a friendly
-// default — always addressed to the pinger.
-func (a *App) autoReplyPing() {
-	// The ping history + H cursor live in the lastping feature (§T83); pull the
-	// next ping to reply to from its "pings" service.
-	store, _ := a.services["pings"].(feature.PingStore)
-	if store == nil {
-		a.log.Addf(StyleSystem, "no recent ping to reply to")
-		return
-	}
-	from, msg, ok := store.NextReply()
-	if !ok {
-		a.log.Addf(StyleSystem, "no recent ping to reply to")
-		return
-	}
-	if reply, ok := composeQueryReply(msg, from, a.queryEnv()); ok {
-		a.sendChat(reply, false)
-		return
-	}
-	reply, ok := composeReply(msg, from, a.playerName)
-	if !ok {
-		reply = from + " hi" // nothing matched → a friendly default
-	}
-	a.sendChat(reply, false)
-}
-
-// queryEnv snapshots the read-only state a chat-query answer may use (§T62/§V34).
-func (a *App) queryEnv() queryEnv {
-	env := queryEnv{
-		selfClan: a.playerClan,
-		goos:     runtime.GOOS,
-	}
-	if wl, ok := a.services["warlist"].(feature.Warlist); ok {
-		env.warlist = wl
-	}
-	if c := a.cli.Load(); c != nil {
-		for _, p := range c.Roster() {
-			if p.Name != "" {
-				env.rosterNames = append(env.rosterNames, p.Name)
-			}
-		}
-	}
-	if st, ok := a.state.Get(); ok {
-		if cx, cy, has := cameraCenter(st); has {
-			env.haveCoords, env.coordX, env.coordY = true, cx, cy
-		}
-	}
-	return env
 }
 
 func (a *App) enterMode(mode int) {

@@ -29,7 +29,6 @@ const (
 	actKill
 	actEmote
 	actScoreboard
-	actAutoReply
 	actReconnect
 	actVoteYes
 	actVoteNo
@@ -45,7 +44,7 @@ const (
 // actionOrder is the canonical iteration order for deterministic Save output.
 var actionOrder = []KeyAction{
 	actHelp, actQuit, actBrowser, actChat, actTeamChat, actLocalConsole,
-	actRemoteConsole, actVisual, actKill, actEmote, actScoreboard, actAutoReply,
+	actRemoteConsole, actVisual, actKill, actEmote, actScoreboard,
 	actReconnect, actVoteYes, actVoteNo, actHook, actMoveLeft, actMoveRight,
 	actMoveStop, actJump, actFire, actSubcellToggle,
 }
@@ -55,7 +54,7 @@ var actionNames = map[KeyAction]string{
 	actHelp: "help", actQuit: "quit", actBrowser: "browser", actChat: "chat",
 	actTeamChat: "team_chat", actLocalConsole: "local_console",
 	actRemoteConsole: "remote_console", actVisual: "visual", actKill: "kill",
-	actEmote: "emote", actScoreboard: "scoreboard", actAutoReply: "auto_reply",
+	actEmote: "emote", actScoreboard: "scoreboard",
 	actReconnect: "reconnect", actVoteYes: "vote_yes", actVoteNo: "vote_no",
 	actHook: "hook", actMoveLeft: "move_left", actMoveRight: "move_right",
 	actMoveStop: "move_stop", actJump: "jump", actFire: "fire",
@@ -119,7 +118,6 @@ func DefaultKeymap() *Keymap {
 	k.bindRune('K', actKill)
 	k.bindRune('e', actEmote)
 	k.bindKey(tcell.KeyTab, actScoreboard)
-	k.bindRune('H', actAutoReply)
 	k.bindRune('R', actReconnect)
 	k.bindKey(tcell.KeyF5, actVoteYes)
 	k.bindKey(tcell.KeyF6, actVoteNo)
