@@ -12,18 +12,15 @@ import (
 // optional auto-reply when pinged while AFK (§T40); it is off by default because
 // teetui is an interactive client, not a headless bot.
 type Config struct {
-	SilentChatCmds bool     // apply !commands locally without sending them (§V14)
-	TappedOut      bool     // auto-reply with TappedOutText when pinged (§T40)
-	TappedOutText  string   // the auto tapped-out reply
-	AutoReply      bool     // auto-reply with AutoReplyMsg on every ping (§T61)
-	AutoReplyMsg   string   // cl_auto_reply_msg template (%n → author)
-	ShowLastPing   bool     // show the most recent ping in the status bar (§T63)
-	ChatSpamFilter int      // 0=off 1=hide 2=hide+autoreply (§T64)
-	FilterInsults  bool     // also hide insults when ChatSpamFilter>0 (§T64)
-	Filters        []string // user chat filter substrings (§T64)
-	WarListReload  int      // reload warlist every N seconds; 0=off (§T66)
-	MaxFPS         int      // cap render repaints/sec; 0=unlimited (§T74)
-	LogLines       int      // log-band rows when the visual is on (§T88)
+	SilentChatCmds bool   // apply !commands locally without sending them (§V14)
+	TappedOut      bool   // auto-reply with TappedOutText when pinged (§T40)
+	TappedOutText  string // the auto tapped-out reply
+	AutoReply      bool   // auto-reply with AutoReplyMsg on every ping (§T61)
+	AutoReplyMsg   string // cl_auto_reply_msg template (%n → author)
+	ShowLastPing   bool   // show the most recent ping in the status bar (§T63)
+	WarListReload  int    // reload warlist every N seconds; 0=off (§T66)
+	MaxFPS         int    // cap render repaints/sec; 0=unlimited (§T74)
+	LogLines       int    // log-band rows when the visual is on (§T88)
 }
 
 // NewConfig returns the default configuration (§T39/§T40/§T61 defaults).
@@ -68,12 +65,6 @@ var cvars = []cvar{
 	{"cl_show_last_ping", "show the most recent chat ping in the status bar (0/1)",
 		func(c *Config) string { return b2s(c.ShowLastPing) },
 		func(c *Config, v string) { c.ShowLastPing = s2b(v) }},
-	{"cl_chat_spam_filter", "hide spam pings (0=off 1=hide 2=hide+autoreply)",
-		func(c *Config) string { return itoa(c.ChatSpamFilter) },
-		func(c *Config, v string) { c.ChatSpamFilter = clampAtoi(v, 0, 2) }},
-	{"cl_chat_spam_filter_insults", "also hide insults when cl_chat_spam_filter>0 (0/1)",
-		func(c *Config) string { return b2s(c.FilterInsults) },
-		func(c *Config, v string) { c.FilterInsults = s2b(v) }},
 	{"cl_war_list_auto_reload", "reload the warlist file every N seconds (0=off)",
 		func(c *Config) string { return itoa(c.WarListReload) },
 		func(c *Config, v string) { c.WarListReload = clampAtoi(v, 0, 3600) }},

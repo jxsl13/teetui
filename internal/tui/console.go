@@ -31,8 +31,7 @@ var builtinHelp = map[string]string{
 // consoleCommands is the completion candidate set for the local console (§T15):
 // the built-in commands plus every config cvar, sorted.
 var consoleCommands = func() []string {
-	out := []string{"echo", "exit", "help", "quit", "say", "spec", "version",
-		"addfilter", "delfilter", "listfilter"}
+	out := []string{"echo", "exit", "help", "quit", "say", "spec", "version"}
 	for _, c := range cvars {
 		out = append(out, c.name)
 	}
@@ -99,29 +98,6 @@ func runConsole(line string, cfg *Config) conResult {
 		return conResult{Chat: rest}
 	case "version":
 		return conResult{Out: []string{"teetui (twclient v0.2.4)"}}
-	case "addfilter":
-		if rest == "" {
-			return conResult{Out: []string{"usage: addfilter <text>"}}
-		}
-		if next, ok := addFilter(cfg.Filters, rest); ok {
-			cfg.Filters = next
-			return conResult{Out: []string{"chat filter added: " + rest}}
-		}
-		return conResult{Out: []string{"filter already present"}}
-	case "delfilter":
-		if rest == "" {
-			return conResult{Out: []string{"usage: delfilter <text>"}}
-		}
-		if next, ok := delFilter(cfg.Filters, rest); ok {
-			cfg.Filters = next
-			return conResult{Out: []string{"chat filter removed: " + rest}}
-		}
-		return conResult{Out: []string{"no such filter"}}
-	case "listfilter":
-		if len(cfg.Filters) == 0 {
-			return conResult{Out: []string{"no chat filters"}}
-		}
-		return conResult{Out: []string{"filters: " + strings.Join(cfg.Filters, ", ")}}
 	case "spec", "spectate", "pause":
 		return conResult{Spectate: true, SpecName: rest} // rest "" → free view
 	case "quit", "exit":

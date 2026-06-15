@@ -38,17 +38,9 @@ func (a *App) DefaultDialer(name, clan, skin string) func(addr string, ver packe
 			if p, ok := cc.Player(e.ClientID); ok {
 				from = p.Name
 			}
-			// Incoming spam/insult/user filters: hide matching lines; mode 2 also
-			// auto-replies (§T64/§V36). Filtered lines do not reach the log or the
-			// ping tracker.
-			cs := a.cfgSnap()
-			if hide, autoReply := filterDecision(e.Msg, false, &cs); hide {
-				if autoReply {
-					a.autoReplySpam(from, e.Msg)
-				}
-				return
-			}
-			// User chat hooks; a hook/feature may suppress the line (§T70/§T76/§V39).
+			// Incoming chat filtering now lives in the chatfilter feature, which
+			// suppresses via OnChat below (§T81). A hook/feature may suppress the
+			// line (§T70/§T76/§V39); a suppressed line is not logged or ping-tracked.
 			if extension.Count() > 0 {
 				ev := extension.ChatEvent{ClientID: e.ClientID, Name: from, Msg: e.Msg, Team: e.Team != 0}
 				if extension.FireChat(a.hookCtx(), ev) {

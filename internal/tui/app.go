@@ -250,27 +250,6 @@ func (a *App) NoteChat(from, msg string) {
 	a.maybeAutoReply(from, msg)
 }
 
-// autoReplySpam sends a canned reply to a line hidden by cl_chat_spam_filter==2
-// (hide+autoreply, §T64), rate-limited so a spam burst can't turn teetui into a
-// flooder. It reuses the context-aware composer (§T61).
-func (a *App) autoReplySpam(from, msg string) {
-	if from == "" {
-		return
-	}
-	a.mu.Lock()
-	if time.Since(a.autoReplyAt) < tappedOutInterval {
-		a.mu.Unlock()
-		return
-	}
-	a.autoReplyAt = time.Now()
-	a.mu.Unlock()
-	reply, ok := composeReply(msg, from, a.playerName)
-	if !ok {
-		reply = from + " stop"
-	}
-	a.sendChat(reply, false)
-}
-
 // maybeAutoReply auto-answers a ping when cl_auto_reply is on (§T61), rate-
 // limited like the tapped-out reply. It uses the cl_auto_reply_msg template
 // (%n → author); tapped-out (if also on) already fired, so this is the general
