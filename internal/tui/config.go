@@ -21,6 +21,7 @@ type Config struct {
 	ChatSpamFilter int      // 0=off 1=hide 2=hide+autoreply (§T64)
 	FilterInsults  bool     // also hide insults when ChatSpamFilter>0 (§T64)
 	Filters        []string // user chat filter substrings (§T64)
+	WarListReload  int      // reload warlist every N seconds; 0=off (§T66)
 }
 
 // NewConfig returns the default configuration (§T39/§T40/§T61 defaults).
@@ -69,6 +70,9 @@ var cvars = []cvar{
 	{"cl_chat_spam_filter_insults", "also hide insults when cl_chat_spam_filter>0 (0/1)",
 		func(c *Config) string { return b2s(c.FilterInsults) },
 		func(c *Config, v string) { c.FilterInsults = s2b(v) }},
+	{"cl_war_list_auto_reload", "reload the warlist file every N seconds (0=off)",
+		func(c *Config) string { return itoa(c.WarListReload) },
+		func(c *Config, v string) { c.WarListReload = clampAtoi(v, 0, 3600) }},
 }
 
 // findCvar returns the cvar named name, or nil.

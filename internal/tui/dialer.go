@@ -39,7 +39,8 @@ func (a *App) DefaultDialer(name, clan, skin string) func(addr string, ver packe
 			// Incoming spam/insult/user filters: hide matching lines; mode 2 also
 			// auto-replies (§T64/§V36). Filtered lines do not reach the log or the
 			// ping tracker.
-			if hide, autoReply := filterDecision(e.Msg, false, a.cfg); hide {
+			cs := a.cfgSnap()
+			if hide, autoReply := filterDecision(e.Msg, false, &cs); hide {
 				if autoReply {
 					a.autoReplySpam(from, e.Msg)
 				}

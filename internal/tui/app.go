@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -77,8 +78,12 @@ type App struct {
 	warlist    *Warlist
 	keymap     *Keymap
 	playerName string
-	playerClan string  // our clan tag, for chat-query answers (§T62)
-	cfg        *Config // console-settable client config (§T39/§T40)
+	playerClan string     // our clan tag, for chat-query answers (§T62)
+	cfg        *Config    // console-settable client config (§T39/§T40)
+	cfgMu      sync.Mutex // guards a.cfg vs off-main readers (callbacks/loops, §V4)
+
+	warlistPath  string    // path of the loaded warlist, for auto-reload (§T66)
+	warlistMtime time.Time // last-seen warlist mtime (reload goroutine only)
 
 	tappedOutAt time.Time // last auto tapped-out reply, for rate limiting (§T40)
 	autoReplyAt time.Time // last cl_auto_reply, for rate limiting (§T61)
@@ -135,11 +140,25 @@ func NewAppWithScreen(scr tcell.Screen, server string, state *State, input *Inpu
 	}
 	a.loadHistory()
 	if p, err := configDir(); err == nil {
-		_ = a.warlist.Load(filepath.Join(p, "warlist.txt"))
+		a.warlistPath = filepath.Join(p, "warlist.txt")
+		_ = a.warlist.Load(a.warlistPath)
+		if fi, err := os.Stat(a.warlistPath); err == nil {
+			a.warlistMtime = fi.ModTime()
+		}
 		_ = a.browser.LoadFavorites(filepath.Join(p, "favorites.txt"))
 		_ = a.keymap.Load(filepath.Join(p, "keymap.txt")) // rebindable keys (§V19/§T42)
 	}
 	return a
+}
+
+// cfgSnap returns a consistent shallow copy of the live config for readers on
+// goroutines other than the UI thread (twclient callbacks, the reload loop), so
+// console writes don't data-race with them (§V4). Config has no internal mutex,
+// so it is safely value-copied under cfgMu.
+func (a *App) cfgSnap() Config {
+	a.cfgMu.Lock()
+	defer a.cfgMu.Unlock()
+	return *a.cfg
 }
 
 // favPath returns the favorites file path (best-effort).
@@ -222,7 +241,8 @@ func (a *App) autoReplySpam(from, msg string) {
 // (%n → author); tapped-out (if also on) already fired, so this is the general
 // auto-responder. Off by default — teetui is interactive.
 func (a *App) maybeAutoReply(from, _ string) {
-	if a.cfg == nil || !a.cfg.AutoReply || from == "" {
+	cs := a.cfgSnap()
+	if !cs.AutoReply || from == "" {
 		return
 	}
 	a.mu.Lock()
@@ -231,7 +251,7 @@ func (a *App) maybeAutoReply(from, _ string) {
 		return
 	}
 	a.autoReplyAt = time.Now()
-	tmpl := a.cfg.AutoReplyMsg
+	tmpl := cs.AutoReplyMsg
 	a.mu.Unlock()
 	if msg := expandAutoReply(tmpl, from); msg != "" {
 		a.sendChat(msg, false)
@@ -246,7 +266,8 @@ const tappedOutInterval = 30 * time.Second
 // enabled and we were just pinged, at most once per tappedOutInterval (§T40).
 // Off by default — teetui is interactive, not a headless AFK bot.
 func (a *App) maybeTappedOut() {
-	if a.cfg == nil || !a.cfg.TappedOut || a.cfg.TappedOutText == "" {
+	cs := a.cfgSnap()
+	if !cs.TappedOut || cs.TappedOutText == "" {
 		return
 	}
 	a.mu.Lock()
@@ -255,9 +276,8 @@ func (a *App) maybeTappedOut() {
 		return
 	}
 	a.tappedOutAt = time.Now()
-	text := a.cfg.TappedOutText
 	a.mu.Unlock()
-	a.sendChat(text, false)
+	a.sendChat(cs.TappedOutText, false)
 }
 
 // SetDialer installs the factory used to (re)build a client when joining a
@@ -352,12 +372,52 @@ func (a *App) flushSend(msg string, team bool) {
 	}
 }
 
+// reloadWarlistLoop re-reads the warlist file when it changes on disk, every
+// cl_war_list_auto_reload seconds, so external edits apply live (§T66). 0 = off.
+func (a *App) reloadWarlistLoop() {
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
+	var last time.Time
+	for {
+		select {
+		case <-a.quit:
+			return
+		case now := <-t.C:
+			iv := a.cfgSnap().WarListReload
+			if iv <= 0 || now.Sub(last) < time.Duration(iv)*time.Second {
+				continue
+			}
+			last = now
+			a.checkWarlistReload()
+		}
+	}
+}
+
+// checkWarlistReload reloads the warlist if its file mtime advanced (§T66).
+func (a *App) checkWarlistReload() {
+	if a.warlistPath == "" {
+		return
+	}
+	fi, err := os.Stat(a.warlistPath)
+	if err != nil {
+		return
+	}
+	if fi.ModTime().After(a.warlistMtime) {
+		if err := a.warlist.Load(a.warlistPath); err == nil {
+			a.warlistMtime = fi.ModTime()
+			a.log.Addf(StyleSystem, "warlist reloaded")
+			a.wake()
+		}
+	}
+}
+
 // Run renders until quit. It returns after restoring the terminal.
 func (a *App) Run() {
 	defer a.scr.Fini()
 	events := make(chan tcell.Event, 16)
 	go a.scr.ChannelEvents(events, a.quit)
-	go a.drainSends() // pace outgoing chat (§T65)
+	go a.drainSends()        // pace outgoing chat (§T65)
+	go a.reloadWarlistLoop() // live warlist reload (§T66)
 
 	a.draw()
 	for {
@@ -887,9 +947,12 @@ func (a *App) IsOwnEcho(clientID int, msg string) bool {
 	return false
 }
 
-// runLocal executes a local-console line (§T39).
+// runLocal executes a local-console line (§T39). The console reads/writes cfg,
+// so it holds cfgMu to stay consistent with off-main readers (§V4).
 func (a *App) runLocal(line string) {
+	a.cfgMu.Lock()
 	r := runConsole(line, a.cfg)
+	a.cfgMu.Unlock()
 	for _, o := range r.Out {
 		a.log.Addf(StyleSystem, "] %s", o)
 	}
