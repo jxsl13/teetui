@@ -58,6 +58,9 @@ func run() error {
 			client.WithController(input),
 		)
 		c.OnChat(func(cc *client.Client, e packet.EventChat) {
+			if app.IsOwnEcho(e.ClientID, e.Msg) {
+				return // already echoed locally on send (§V29)
+			}
 			from := ""
 			if p, ok := cc.Player(e.ClientID); ok {
 				from = p.Name

@@ -74,11 +74,12 @@ type App struct {
 	playerName     string
 	silentChatCmds bool
 
-	mu       sync.Mutex // guards popup + ping (written from callback goroutines)
+	mu       sync.Mutex // guards popup + ping + sent (callback goroutines)
 	popup    Popup
 	pingFrom string
 	pingMsg  string
 	pingAt   time.Time
+	sent     []sentChat // recently sent chat, for own-echo dedupe (§V29)
 
 	quit chan struct{}
 }
@@ -656,6 +657,46 @@ func (a *App) sendChat(msg string, team bool) {
 	} else {
 		_ = c.SendChat(msg)
 	}
+	// Echo our own line locally and immediately — some servers do not echo the
+	// sender's own chat, and on 0.6 the echo carries an empty name (§V29/§B8).
+	a.noteSent(msg)
+	me := a.playerName
+	if me == "" {
+		me = "me"
+	}
+	prefix := ""
+	if team {
+		prefix = "[team] "
+	}
+	a.log.Addf(StyleChat, "%s[%s] %s", prefix, me, msg)
+}
+
+// noteSent records a just-sent chat line so the server's echo of it can be
+// de-duplicated (§V29).
+func (a *App) noteSent(msg string) {
+	a.mu.Lock()
+	a.sent = append(a.sent, sentChat{msg: msg, at: time.Now()})
+	if len(a.sent) > 32 {
+		a.sent = a.sent[len(a.sent)-32:]
+	}
+	a.mu.Unlock()
+}
+
+// IsOwnEcho reports whether an incoming chat line is the server echoing our own
+// recently-sent message (so the caller can skip logging it twice, §V29). It
+// matches only the local client id and consumes the record on a hit.
+func (a *App) IsOwnEcho(clientID int, msg string) bool {
+	c := a.cli.Load()
+	if c == nil || clientID != c.LocalID() {
+		return false
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if i := findRecentSent(a.sent, msg, time.Now()); i >= 0 {
+		a.sent = append(a.sent[:i], a.sent[i+1:]...)
+		return true
+	}
+	return false
 }
 
 // runLocal executes a local-console line (§T39).
