@@ -13,6 +13,7 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/jxsl13/teetui/extension"
+	"github.com/jxsl13/teetui/feature"
 	"github.com/jxsl13/twclient/client"
 	"github.com/jxsl13/twclient/master"
 	"github.com/jxsl13/twclient/packet"
@@ -87,6 +88,15 @@ type App struct {
 	warlistMtime time.Time    // last-seen warlist mtime (reload goroutine only)
 	limiter      frameLimiter // render repaint throttle (§T73), Run goroutine only
 
+	// feature-module registries (§T76): populated by Host calls during Provision.
+	dynVars      map[string]*dynVar                            // feature-defined cvars
+	featActRune  map[rune]func()                               // feature actions bound to a rune
+	featActKey   map[tcell.Key]func()                          // feature actions bound to a named key
+	statusFields []func() string                               // status-bar contributions
+	nameStylers  []func(name, clan string) (tcell.Style, bool) // per-name styling
+	services     map[string]any                                // cross-feature service registry
+	sendChatHook []func(msg string, team bool) (string, bool)  // outgoing-chat chain
+
 	tappedOutAt time.Time // last auto tapped-out reply, for rate limiting (§T40)
 	autoReplyAt time.Time // last cl_auto_reply, for rate limiting (§T61)
 
@@ -139,12 +149,20 @@ func NewAppWithScreen(scr tcell.Screen, server string, state *State, input *Inpu
 		visual:   true,
 		popup:    greetingPopup(), // startup greeting (§T31)
 		quit:     make(chan struct{}),
+
+		dynVars:     map[string]*dynVar{}, // feature registries (§T76)
+		featActRune: map[rune]func(){},
+		featActKey:  map[tcell.Key]func(){},
+		services:    map[string]any{},
 	}
 	// Drive user OnTick hooks from the observer (§T70); guarded so there is zero
 	// per-tick cost when no hooks are registered.
 	a.state.SetTickHook(func(st client.TickState) {
 		if extension.Count() > 0 {
 			extension.FireTick(a.hookCtx(), st)
+		}
+		if feature.Count() > 0 {
+			feature.FireTick(a.host(), st)
 		}
 	})
 	a.loadHistory()
@@ -162,6 +180,7 @@ func NewAppWithScreen(scr tcell.Screen, server string, state *State, input *Inpu
 			extension.Register("external-cmd-hooks", h)
 		}
 	}
+	a.provisionFeatures() // provision registered feature modules (§T76)
 	return a
 }
 
@@ -315,6 +334,9 @@ func (a *App) ShowDisconnect(reason string) {
 
 	if extension.Count() > 0 {
 		extension.FireDisconnect(a.hookCtx(), reason) // user hooks (§T70)
+	}
+	if feature.Count() > 0 {
+		feature.FireDisconnect(a.host(), reason) // feature modules (§T76)
 	}
 	if a.quitting() {
 		return
@@ -526,9 +548,12 @@ func (a *App) handle(ev tcell.Event) {
 			a.log.ScrollDown(1)
 		}
 	case *tcell.EventKey:
-		// User key hooks get first refusal; a hook returning handled consumes the
-		// key before teetui's own handling (§T70/§V39). No hooks → no-op.
+		// Feature/user key hooks get first refusal; returning handled consumes the
+		// key before teetui's own handling (§T70/§T76/§V39). No hooks → no-op.
 		if extension.Count() > 0 && extension.FireKey(a.hookCtx(), keyToHook(ev)) {
+			return
+		}
+		if feature.Count() > 0 && feature.FireKey(a.host(), featureKey(ev)) {
 			return
 		}
 		switch {
@@ -612,6 +637,12 @@ func (a *App) handleNormal(ev *tcell.EventKey) {
 	if act, ok := a.keymap.Lookup(ev.Key(), ev.Rune()); ok {
 		a.doAction(act)
 		return
+	}
+	// Feature-defined actions (§T76/§V46) get the keys core does not bind.
+	if len(a.featActRune) > 0 || len(a.featActKey) > 0 {
+		if a.runFeatureAction(ev) {
+			return
+		}
 	}
 	// Continuous/parametric controls stay direct: log scroll, weapon select
 	// (1..6) and keyboard aim (arrows). These map a group of keys to one
@@ -954,6 +985,14 @@ func (a *App) sendChat(msg string, team bool) {
 	if c == nil {
 		return
 	}
+	// Outgoing-chat hook chain (§T76): a feature may rewrite the line or cancel
+	// the send (e.g. silent !commands). No hooks → passthrough.
+	if len(a.sendChatHook) > 0 {
+		var send bool
+		if msg, send = a.runSendChatHooks(msg, team); !send {
+			return
+		}
+	}
 	// Queue the actual server send through the rate-limited spam-safe buffer so a
 	// burst cannot flood the server / trip its mute (§T65/§V37). The local echo
 	// below stays immediate for responsiveness.
@@ -1003,6 +1042,14 @@ func (a *App) IsOwnEcho(clientID int, msg string) bool {
 // runLocal executes a local-console line (§T39). The console reads/writes cfg,
 // so it holds cfgMu to stay consistent with off-main readers (§V4).
 func (a *App) runLocal(line string) {
+	// Feature-defined cvars (§T76) are get/set here before the static console,
+	// so `cl_feature_var` and `cl_feature_var 1` work like any core cvar.
+	if out, ok := a.tryDynVar(line); ok {
+		for _, o := range out {
+			a.log.Addf(StyleSystem, "] %s", o)
+		}
+		return
+	}
 	a.cfgMu.Lock()
 	r := runConsole(line, a.cfg)
 	a.cfgMu.Unlock()
@@ -1265,6 +1312,9 @@ func (a *App) Join(addr string, ver packet.Version) {
 		if extension.Count() > 0 {
 			extension.FireConnect(a.hookCtx()) // user hooks (§T70)
 		}
+		if feature.Count() > 0 {
+			feature.FireConnect(a.host()) // feature modules (§T76)
+		}
 		a.wake()
 	}()
 }
@@ -1440,6 +1490,11 @@ func (a *App) draw() {
 	if a.cfg.ShowLastPing { // optional last-ping readout (§T63)
 		if p, ok := a.pings.newest(); ok {
 			status += fmt.Sprintf("| ping %s: %s ", p.from, p.msg)
+		}
+	}
+	for _, fn := range a.statusFields { // feature status contributions (§T76)
+		if s := fn(); s != "" {
+			status += "| " + s + " "
 		}
 	}
 	for x := 0; x < lay.Status.W; x++ {
