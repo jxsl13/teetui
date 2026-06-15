@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/jxsl13/teetui/extension"
 	"github.com/jxsl13/twclient/client"
 	"github.com/jxsl13/twclient/master"
 	"github.com/jxsl13/twclient/packet"
@@ -138,6 +139,13 @@ func NewAppWithScreen(scr tcell.Screen, server string, state *State, input *Inpu
 		popup:    greetingPopup(), // startup greeting (§T31)
 		quit:     make(chan struct{}),
 	}
+	// Drive user OnTick hooks from the observer (§T70); guarded so there is zero
+	// per-tick cost when no hooks are registered.
+	a.state.SetTickHook(func(st client.TickState) {
+		if extension.Count() > 0 {
+			extension.FireTick(a.hookCtx(), st)
+		}
+	})
 	a.loadHistory()
 	if p, err := configDir(); err == nil {
 		a.warlistPath = filepath.Join(p, "warlist.txt")
@@ -299,6 +307,9 @@ func (a *App) ShowDisconnect(reason string) {
 	a.mu.Unlock()
 	a.wake()
 
+	if extension.Count() > 0 {
+		extension.FireDisconnect(a.hookCtx(), reason) // user hooks (§T70)
+	}
 	if a.quitting() {
 		return
 	}
@@ -478,6 +489,11 @@ func (a *App) handle(ev tcell.Event) {
 			a.log.ScrollDown(1)
 		}
 	case *tcell.EventKey:
+		// User key hooks get first refusal; a hook returning handled consumes the
+		// key before teetui's own handling (§T70/§V39). No hooks → no-op.
+		if extension.Count() > 0 && extension.FireKey(a.hookCtx(), keyToHook(ev)) {
+			return
+		}
 		switch {
 		case a.popupActive():
 			a.handlePopup(ev)
@@ -1209,6 +1225,9 @@ func (a *App) Join(addr string, ver packet.Version) {
 		a.log.Addf(StyleSystem, "connected.")
 		go c.RunFrontends(fctx) // drive observer (render) + controller (input)
 		go a.chillpwLogin(addr) // opt-in rcon auto-login (§T68)
+		if extension.Count() > 0 {
+			extension.FireConnect(a.hookCtx()) // user hooks (§T70)
+		}
 		a.wake()
 	}()
 }

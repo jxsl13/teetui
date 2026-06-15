@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 
+	"github.com/jxsl13/teetui/extension"
 	"github.com/jxsl13/twclient/client"
 	"github.com/jxsl13/twclient/packet"
 )
@@ -46,6 +47,13 @@ func (a *App) DefaultDialer(name, clan, skin string) func(addr string, ver packe
 				}
 				return
 			}
+			// User chat hooks; a hook may suppress the line (§T70/§V39).
+			if extension.Count() > 0 {
+				ev := extension.ChatEvent{ClientID: e.ClientID, Name: from, Msg: e.Msg, Team: e.Team != 0}
+				if extension.FireChat(a.hookCtx(), ev) {
+					return
+				}
+			}
 			who := from
 			if who == "" {
 				who = fmt.Sprintf("%d", e.ClientID) // id fallback when name empty (§V26)
@@ -54,10 +62,23 @@ func (a *App) DefaultDialer(name, clan, skin string) func(addr string, ver packe
 			a.NoteChat(from, e.Msg)
 		})
 		c.OnServerMsg(func(_ *client.Client, e packet.EventServerMsg) {
+			if extension.Count() > 0 {
+				extension.FireServerMsg(a.hookCtx(), e.Msg)
+			}
 			a.log.Addf(StyleSystem, "*** %s", e.Msg)
 		})
 		c.OnBroadcast(func(_ *client.Client, e packet.EventBroadcast) {
+			if extension.Count() > 0 {
+				extension.FireBroadcast(a.hookCtx(), e.Text)
+			}
 			a.log.Addf(StyleSystem, ">> %s", e.Text)
+		})
+		c.OnKill(func(_ *client.Client, e packet.EventKill) {
+			if extension.Count() > 0 {
+				extension.FireKill(a.hookCtx(), extension.KillEvent{
+					Killer: e.Killer, Victim: e.Victim, Weapon: int(e.Weapon),
+				})
+			}
 		})
 		c.OnRconLine(func(_ *client.Client, e packet.EventRconLine) {
 			a.log.Addf(StyleSystem, "rcon> %s", e.Line)
