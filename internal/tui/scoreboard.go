@@ -32,7 +32,17 @@ func rosterRows(roster map[int]client.PlayerState) []client.PlayerState {
 
 // scoreboardLine formats one roster row into aligned columns.
 func scoreboardLine(p client.PlayerState) string {
-	return fmt.Sprintf("%*d %s %s", scoreColW, p.Score, padCol(p.Name, nameColW), padCol(p.Clan, clanColW))
+	return fmt.Sprintf("%*d %s %s", scoreColW, p.Score, padCol(playerLabel(p), nameColW), padCol(p.Clan, clanColW))
+}
+
+// playerLabel is the player's name, falling back to "#<id>" when the registry
+// has no name yet — e.g. on 0.6 where twclient does not decode client info
+// (§T56/§V26/§B5; tracked upstream in jxsl13/twclient#3). Pure, unit-tested.
+func playerLabel(p client.PlayerState) string {
+	if p.Name != "" {
+		return p.Name
+	}
+	return fmt.Sprintf("#%d", p.ClientID)
 }
 
 // DrawScoreboard overlays the player table on the game region, sorted by score,
