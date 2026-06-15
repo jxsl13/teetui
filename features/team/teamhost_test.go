@@ -17,6 +17,7 @@ func newCapHost() *capHost { return &capHost{cmds: map[string]func(string) []str
 
 func (h *capHost) SendChat(string, bool)                        {}
 func (h *capHost) Do(a client.Action) error                     { h.last = a; return nil }
+func (h *capHost) RconLogin(string)                             {}
 func (h *capHost) Log(string)                                   {}
 func (h *capHost) Roster() []client.PlayerState                 { return nil }
 func (h *capHost) Tick() (client.TickState, bool)               { return client.TickState{}, false }
@@ -34,6 +35,7 @@ func (h *capHost) AddStatusField(func() string)                            {}
 func (h *capHost) AddNameStyle(func(string, string) (feature.Style, bool)) {}
 func (h *capHost) Provide(string, any)                                     {}
 func (h *capHost) Lookup(string) (any, bool)                               { return nil, false }
+func (h *capHost) DataPath(name string) string                            { return name }
 
 // §T92/§V52: the team feature registers `team`/`join` and issues
 // client.ActSetTeam with the correct id.

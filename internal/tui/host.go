@@ -1,8 +1,11 @@
 package tui
 
 import (
+	"context"
 	"fmt"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/jxsl13/teetui/feature"
@@ -52,6 +55,33 @@ func (h appHost) Do(act client.Action) error {
 }
 
 func (h appHost) Log(msg string) { h.a.log.Addf(StyleSystem, "%s", msg) }
+
+// RconLogin authenticates rcon off the event loop and logs the outcome (§T84);
+// the password is never logged. Async so a feature's OnConnect doesn't block.
+func (h appHost) RconLogin(password string) {
+	c := h.a.cli.Load()
+	if c == nil || password == "" {
+		return
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		defer cancel()
+		if err := c.RconLogin(ctx, password); err != nil {
+			h.a.log.Addf(StyleSelf, "rcon login failed")
+		} else {
+			h.a.log.Addf(StyleSystem, "rcon authenticated")
+		}
+		h.a.wake()
+	}()
+}
+
+// DataPath returns an absolute path under the teetui config dir (§T84), or "".
+func (h appHost) DataPath(name string) string {
+	if dir, err := configDir(); err == nil {
+		return filepath.Join(dir, name)
+	}
+	return ""
+}
 
 func (h appHost) Roster() []client.PlayerState {
 	if c := h.a.cli.Load(); c != nil {

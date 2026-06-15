@@ -374,7 +374,7 @@ T80|.|feature `features/chatquery`: war-status/where/os/list answers; Lookup("wa
 T81|.|feature `features/chatfilter`: incoming spam/insult/user filters via OnChat suppress; own cvars (cl_chat_spam_filter[_insults]) + console addfilter/listfilter/delfilter via Host.DefineCommand|C21,V44,V36
 T82|.|feature `features/responders`: tapped-out (cl_tapped_out_message[_text]) + auto-reply (cl_auto_reply[_msg]) on ping; own cvars; rate-limited; reads PlayerName|C21,V44,V33
 T83|.|feature `features/lastping`: 16-deep ping queue + AddStatusField (cl_show_last_ping); Provides "pings" for replytoping (or replytoping owns queue + Provides)|C21,V44,V35
-T84|.|feature `features/chillpw`: opt-in rcon auto-login from secrets file on OnConnect; own cvars (cl_chillpw, cl_password_file); secret never logged|C21,V44,V38
+T84|x|feature `features/chillpw`: opt-in rcon auto-login from secrets file on OnConnect; own cvars (cl_chillpw, cl_password_file); secret never logged|C21,V44,V38
 T85|.|feature `features/cmdhook`: external command hooks (~/.config/teetui/hooks/<event>) re-expressed as a feature on the new Host API (replaces T71 core wiring)|C21,V44,V40
 T86|.|`main.go` single-file: blank-import all feature packages + `tui.Main()`; STRIP feature logic from core/main; + import-isolation guard test (V43: ⊥ core↔features import) + parity check (V44: migrated feature tests pass in their pkgs)|C21,V43,V45,V44
 T87|x|layout redesign → vertical stack: rewrite `Compute` (status top / game / log band / input bottom, full-width, ⊥ left/right); logBandHeight fn (visual on → clamp(cfg.LogLines,1,⌊h/2⌋); off → full body); rewire `draw()` (game above band, logs above legend); update layout tests (responsive + cap + resize)|C22,V48,V49,V50,I.windows

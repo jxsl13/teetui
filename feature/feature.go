@@ -55,6 +55,7 @@ type Host interface {
 	// actions
 	SendChat(msg string, team bool)
 	Do(action client.Action) error
+	RconLogin(password string) // async rcon auth (off-loop); logs the outcome
 	Log(msg string)
 	// state
 	Roster() []client.PlayerState
@@ -78,6 +79,9 @@ type Host interface {
 	// cross-feature services (← caddy ctx.App): Provide one, Lookup another
 	Provide(name string, svc any)
 	Lookup(name string) (any, bool)
+	// DataPath returns an absolute path under the teetui config dir for a
+	// feature's persisted file ("" if no config dir is available).
+	DataPath(name string) string
 }
 
 // Hooks is the event set a feature can handle; embed NopFeature for the rest.

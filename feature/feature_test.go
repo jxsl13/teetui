@@ -18,6 +18,7 @@ func newFakeHost() *fakeHost { return &fakeHost{configs: map[string]string{}} }
 
 func (h *fakeHost) SendChat(msg string, team bool)                      { h.chats = append(h.chats, msg) }
 func (h *fakeHost) Do(client.Action) error                              { return nil }
+func (h *fakeHost) RconLogin(string)                                    {}
 func (h *fakeHost) Log(msg string)                                      { h.logs = append(h.logs, msg) }
 func (h *fakeHost) Roster() []client.PlayerState                        { return nil }
 func (h *fakeHost) Tick() (client.TickState, bool)                      { return client.TickState{}, false }
@@ -33,6 +34,7 @@ func (h *fakeHost) AddStatusField(func() string)                        {}
 func (h *fakeHost) AddNameStyle(func(string, string) (Style, bool))     {}
 func (h *fakeHost) Provide(string, any)                                 {}
 func (h *fakeHost) Lookup(string) (any, bool)                           { return nil, false }
+func (h *fakeHost) DataPath(name string) string                         { return name }
 
 // recFeat records events + declares a cvar at Provision.
 type recFeat struct {

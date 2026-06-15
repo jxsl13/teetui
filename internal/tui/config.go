@@ -22,8 +22,6 @@ type Config struct {
 	FilterInsults  bool     // also hide insults when ChatSpamFilter>0 (§T64)
 	Filters        []string // user chat filter substrings (§T64)
 	WarListReload  int      // reload warlist every N seconds; 0=off (§T66)
-	Chillpw        bool     // auto rcon-login from the secrets file on connect (§T68)
-	PasswordFile   string   // chillpw secrets file (addr→password); never logged (§T68)
 	MaxFPS         int      // cap render repaints/sec; 0=unlimited (§T74)
 	LogLines       int      // log-band rows when the visual is on (§T88)
 }
@@ -36,8 +34,6 @@ func NewConfig() *Config {
 		TappedOutText:  "I'm currently tapped out (afk)",
 		AutoReply:      false,
 		AutoReplyMsg:   "%n (teetui auto reply)",
-		Chillpw:        false,           // opt-in: off until the user enables it (§V38)
-		PasswordFile:   "chillpw.txt",   // under the config dir unless absolute
 		MaxFPS:         DefaultMaxFPS,   // cap repaints (§T74); 0 = unlimited
 		LogLines:       DefaultLogLines, // log-band rows when visual on (§T88)
 	}
@@ -87,12 +83,6 @@ var cvars = []cvar{
 	{"cl_log_lines", "log-band rows when the visual is on (capped at half the height)",
 		func(c *Config) string { return itoa(c.LogLines) },
 		func(c *Config, v string) { c.LogLines = clampAtoi(v, 1, 1000) }},
-	{"cl_chillpw", "auto rcon-login from the secrets file on connect (0/1)",
-		func(c *Config) string { return b2s(c.Chillpw) },
-		func(c *Config, v string) { c.Chillpw = s2b(v) }},
-	{"cl_password_file", "path to the chillpw secrets file (addr password per line)",
-		func(c *Config) string { return c.PasswordFile },
-		func(c *Config, v string) { c.PasswordFile = v }},
 }
 
 // findCvar returns the cvar named name, or nil.
