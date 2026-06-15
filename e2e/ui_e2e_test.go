@@ -173,8 +173,8 @@ func TestE2EUI(t *testing.T) {
 			})
 
 			t.Run("visual_toggle", func(t *testing.T) {
-				keyRune(app, 'v') // visual off (§T35)
-				mustScreen(t, app, sim, "visual off banner", "[visual off")
+				keyRune(app, 'v') // visual off → logs fill the body, game hidden (§C22)
+				refuteScreen(t, app, sim, "game hidden when visual off", "x:")
 				keyRune(app, 'v') // back on — HUD returns
 				mustScreen(t, app, sim, "visual back on", "x:")
 			})
