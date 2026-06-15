@@ -3,6 +3,7 @@ package tui
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -11,12 +12,15 @@ import (
 // optional auto-reply when pinged while AFK (§T40); it is off by default because
 // teetui is an interactive client, not a headless bot.
 type Config struct {
-	SilentChatCmds bool   // apply !commands locally without sending them (§V14)
-	TappedOut      bool   // auto-reply with TappedOutText when pinged (§T40)
-	TappedOutText  string // the auto tapped-out reply
-	AutoReply      bool   // auto-reply with AutoReplyMsg on every ping (§T61)
-	AutoReplyMsg   string // cl_auto_reply_msg template (%n → author)
-	ShowLastPing   bool   // show the most recent ping in the status bar (§T63)
+	SilentChatCmds bool     // apply !commands locally without sending them (§V14)
+	TappedOut      bool     // auto-reply with TappedOutText when pinged (§T40)
+	TappedOutText  string   // the auto tapped-out reply
+	AutoReply      bool     // auto-reply with AutoReplyMsg on every ping (§T61)
+	AutoReplyMsg   string   // cl_auto_reply_msg template (%n → author)
+	ShowLastPing   bool     // show the most recent ping in the status bar (§T63)
+	ChatSpamFilter int      // 0=off 1=hide 2=hide+autoreply (§T64)
+	FilterInsults  bool     // also hide insults when ChatSpamFilter>0 (§T64)
+	Filters        []string // user chat filter substrings (§T64)
 }
 
 // NewConfig returns the default configuration (§T39/§T40/§T61 defaults).
@@ -59,6 +63,12 @@ var cvars = []cvar{
 	{"cl_show_last_ping", "show the most recent chat ping in the status bar (0/1)",
 		func(c *Config) string { return b2s(c.ShowLastPing) },
 		func(c *Config, v string) { c.ShowLastPing = s2b(v) }},
+	{"cl_chat_spam_filter", "hide spam pings (0=off 1=hide 2=hide+autoreply)",
+		func(c *Config) string { return itoa(c.ChatSpamFilter) },
+		func(c *Config, v string) { c.ChatSpamFilter = clampAtoi(v, 0, 2) }},
+	{"cl_chat_spam_filter_insults", "also hide insults when cl_chat_spam_filter>0 (0/1)",
+		func(c *Config) string { return b2s(c.FilterInsults) },
+		func(c *Config, v string) { c.FilterInsults = s2b(v) }},
 }
 
 // findCvar returns the cvar named name, or nil.
@@ -88,6 +98,24 @@ func s2b(s string) bool {
 	default:
 		return false
 	}
+}
+
+// itoa / clampAtoi convert an int cvar to/from its console string form, clamping
+// a parsed value into [lo,hi].
+func itoa(i int) string { return strconv.Itoa(i) }
+
+func clampAtoi(s string, lo, hi int) int {
+	n, err := strconv.Atoi(strings.TrimSpace(s))
+	if err != nil {
+		return lo
+	}
+	if n < lo {
+		return lo
+	}
+	if n > hi {
+		return hi
+	}
+	return n
 }
 
 // configDir returns the teetui config root (~/.config/teetui per §I), honoring

@@ -36,6 +36,15 @@ func (a *App) DefaultDialer(name, clan, skin string) func(addr string, ver packe
 			if p, ok := cc.Player(e.ClientID); ok {
 				from = p.Name
 			}
+			// Incoming spam/insult/user filters: hide matching lines; mode 2 also
+			// auto-replies (§T64/§V36). Filtered lines do not reach the log or the
+			// ping tracker.
+			if hide, autoReply := filterDecision(e.Msg, false, a.cfg); hide {
+				if autoReply {
+					a.autoReplySpam(from, e.Msg)
+				}
+				return
+			}
 			who := from
 			if who == "" {
 				who = fmt.Sprintf("%d", e.ClientID) // id fallback when name empty (§V26)

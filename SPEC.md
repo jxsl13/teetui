@@ -282,7 +282,7 @@ T60|x|lang classifier (port chillerbot `langparser`): FindWord (word-boundary, c
 T61|x|reply-to-ping engine: replace simple `autoReplies` table — use T60 classifier + multi-lang smalltalk (how-are-you/ca-va/wie-gehts/wbu) + no-context ping→"name ?"; H + auto(cl_auto_reply) reply; rate-limited|C18,V33
 T62|x|chat-query answers from state: war-status ("is X war?"/"why do you kill me"→warlist relation+reason), list wars/clan wars, how-to-join-clan, where(map+tile coords), what-os; answer via chat reply|C18,V34,V14
 T63|x|last-ping queue (16, newest-first, ← chathelper m_aLastPings): H replies newest + cycles older; optional last-ping line in status/HUD (cl_show_last_ping)|C18,V35
-T64|.|incoming chat filters: `cl_chat_spam_filter` 0/1/2 + insult filter + user filter list (console addfilter/listfilter/delfilter); hide matching pings from log; mode2=hide+autoreply; off default|C18,V36
+T64|x|incoming chat filters: `cl_chat_spam_filter` 0/1/2 + insult filter + user filter list (console addfilter/listfilter/delfilter); hide matching pings from log; mode2=hide+autoreply; off default|C18,V36
 T65|.|spam-safe outgoing send buffer: rate-limited chat queue (≤8, min interval, ← chathelper SayBuffer) so teetui ⊥ flood/get muted; FIFO; replaces immediate multi-line sends|C18,V37
 T66|.|warlist auto-reload (`cl_war_list_auto_reload` secs): reload warlist/ files on interval (mtime) so external edits apply live; 0=off|C18,V14,I.config
 T67|.|extended warlist chat commands (← chatcommands.h): `!search <name>`, `!create <war\|team\|neutral\|traitor> [folder] <name>`, `!addreason`, `!unfriend`, folder arg parity; extends T22/T24 parseChatCommand|C18,V14
