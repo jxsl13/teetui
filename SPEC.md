@@ -21,6 +21,7 @@ Re-impl chillerbot-ux ncurses `terminalui` as Go terminal client on `github.com/
 - C13: CODE quality — tested (table+sim-screen), clean pkg boundaries, ⊥ "duct tape". each §V invariant has ≥1 test.
 - C14: LIVE-TEST mandate (user). every feature/fix ! verified against a LIVE server before §T `x` — ⊥ claim done on build alone. teetui ! own e2e harness MIRRORING twclient repo `e2e/`: docker-compose w/ images built from source — **ddnet** (0.6 + 0.7-sixup) & **teeworlds7** (vanilla 0.7); gated by env `TW_E2E` + `-tags e2e`; addressed by compose service names (`ddnet:8303`, `teeworlds7:8303`), run IN-NETWORK. e2e asserts connect+snapshot ticks (via `RunFrontends`, V22). CI/CD ! run e2e + code coverage (race + `-coverprofile`, per-pkg %). ref twclient `e2e/{docker-compose.yml,ddnet.Dockerfile,teeworlds7.Dockerfile,harness_test.go}` + `.github/workflows/ci.yml`.
 - C15: macOS Docker host UDP port-forward BROKEN → host `localhost:8303/8307` connless/connect TIMES OUT. ⊥ test teetui connect from macOS host against docker; run inside compose net (service names) or real server. (← B3)
+- C16: PROCESS (user). any twclient BUG or MISSING functionality found → ALWAYS `gh issue create --repo jxsl13/twclient` (detailed English + repro + observed/expected + env). distinguish teetui-side (fix here) vs twclient-side (file issue). filed: #3 (0.6 registry empty), #4 (Connect ctx=lifetime footgun), #5 (v0.2.3 windows build).
 
 ## §I — interfaces
 
