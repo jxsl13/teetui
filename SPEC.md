@@ -160,6 +160,7 @@ keybinds NOT rebindable yet (chillerbot limitation; ?future config).
 - V22: after EVERY successful `Connect`, ! `go Client.RunFrontends(fctx)` — that loop drives Observer(render)+Controller(input). `Connect` alone ⊥ dispatch. fctx long-lived (≠ connect timeout), cancelled on next Join/Stop. (← B2)
 - V23: ⊥ mark §T `x` w/o LIVE-server pass. connect+snapshot ! verified against live ddnet(0.6), ddnet-sixup(0.7) & teeworlds7(0.7) via e2e harness (C14). (← B3)
 - V24: connect failure ! surface actionable msg in log (addr + version + "check network"), ⊥ silent hang past timeout.
+- V25: ctx passed to `client.Connect(ctx)` = SESSION LIFETIME (twclient binds reader+keepalive+I/O to it; docstring "context governs the entire client lifetime"). ⊥ pass short-timeout ctx, ⊥ `defer cancel()` firing after Connect returns. session ctx = long-lived (= fctx, cancel on next Join/Stop). handshake timeout via watchdog cancelling ONLY while still connecting. (← B4)
 
 ## §T — tasks
 
@@ -215,6 +216,7 @@ T48|x|e2e harness `e2e/` mirroring twclient: docker-compose (ddnet 0.6+0.7-sixup
 T49|x|CI/CD e2e job: build server images (matrix), run `go test -tags e2e ./e2e/...` IN-NETWORK + race + coverage profile + per-pkg %; mirror twclient `.github/workflows/ci.yml`|C14,V23
 T50|x|connect UX: actionable timeout msg (addr/version/network) in log + reconnect/retry key; ?auto-detect protocol via connless `QueryServerInfo` probe before Connect|V24,I.windows
 T51|x|browser LAN tab → REAL subnet scan via twclient v0.2.3 `master.ScanLAN` (broadcast 0.6+0.7, dedupe), replacing localhost-port probe (upgrades T45). map `[]LANServer`→serverRow into LAN source|I.windows,V13
+T52|.|FIX B4: `App.Join` → `Connect(fctx)` (long-lived session ctx); drop `defer cancel` of session ctx; bound handshake via watchdog goroutine that cancels fctx ONLY if still `!connected` after ~12s. + EXTEND e2e (T48): assert SUSTAINED liveness — snapshots keep advancing >15s (past sv_timeout), ⊥ just initial tick|V25,V22,V24
 
 ## §B — bugs
 
@@ -222,3 +224,4 @@ id|date|cause|fix
 B1|2026-06-15|`B` server-browser key dead: startup greeting popup intercepted ALL keys in handlePopup (only Enter/Esc/?/q closed), so `B` swallowed & openBrowser unreachable while popup shown — though popup advertises "B server browser"|V21
 B2|2026-06-15|"connecting to servers does not work": teetui never called `Client.RunFrontends` → Observer(render)+Controller(input) NEVER dispatched. Connected & snaps ticked but UI stuck "connecting…" (observerTicks=0 vs snapTick advancing). fix: `go c.RunFrontends(fctx)` after each Connect, via unified `App.Join`|V22
 B3|2026-06-15|connect "context deadline exceeded": NOT a teetui code bug — connect verified OK vs live teeworlds7:8303 0.7 (0.0s, in compose net). cause = (a) macOS Docker host UDP forward broken → host can't reach localhost:8303/8307 (C15); (b) `-version` mismatch → handshake never completes → 12s deadline. mitigate: run in compose net OR matching `-version`; automate via e2e (T48/T49) + UX (T50)|V23,V24
+B4|2026-06-15|connect succeeds then session DIES (server sv_timeout disconnect): `App.Join` passed `context.WithTimeout(bg,12s)` to `Connect(ctx)` + `defer cancel()` in connect goroutine. twclient binds reader+keepalive+all I/O to the Connect ctx (= session lifetime) → cancel (fired right after Connect returns via defer, or @12s) tore down the LIVE session → no recv/keepalive → DDNet sv_timeout drops client. reproduced: snapshots stop exactly @ ctx deadline (delta 100/2s → 0 @ ~12s). fix: Connect(fctx) long-lived; handshake bounded by watchdog cancelling fctx only if !connected|V25,V22
