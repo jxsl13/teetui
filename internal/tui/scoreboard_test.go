@@ -52,8 +52,12 @@ func TestDrawScoreboardNoPanic(t *testing.T) {
 			2: {ClientID: 2, Name: "me", Clan: "BBB", Score: 9, Local: true, Present: true},
 		},
 	}
-	w := NewWarlist()
-	w.Set("alice", RelWar)
-	DrawScoreboard(scr, Rect{0, 0, 50, 10}, st, w)
-	DrawScoreboard(scr, Rect{0, 0, 50, 10}, st, nil) // nil warlist ok
+	styler := func(name, clan string) (tcell.Style, bool) {
+		if name == "alice" {
+			return StyleSelf, true
+		}
+		return tcell.StyleDefault, false
+	}
+	DrawScoreboard(scr, Rect{0, 0, 50, 10}, st, styler)
+	DrawScoreboard(scr, Rect{0, 0, 50, 10}, st, nil) // nil styler ok
 }

@@ -12,18 +12,16 @@ import (
 // optional auto-reply when pinged while AFK (§T40); it is off by default because
 // teetui is an interactive client, not a headless bot.
 type Config struct {
-	SilentChatCmds bool // apply !commands locally without sending them (§V14)
-	WarListReload  int  // reload warlist every N seconds; 0=off (§T66)
-	MaxFPS         int  // cap render repaints/sec; 0=unlimited (§T74)
-	LogLines       int  // log-band rows when the visual is on (§T88)
+	MaxFPS   int // cap render repaints/sec; 0=unlimited (§T74)
+	LogLines int // log-band rows when the visual is on (§T88)
 }
 
-// NewConfig returns the default configuration (§T39/§T40/§T61 defaults).
+// NewConfig returns the default configuration. Feature-owned cvars are declared
+// by their features at Provision (§T76); core keeps only render settings.
 func NewConfig() *Config {
 	return &Config{
-		SilentChatCmds: true,            // cl_silent_chat_commands default on (§V14)
-		MaxFPS:         DefaultMaxFPS,   // cap repaints (§T74); 0 = unlimited
-		LogLines:       DefaultLogLines, // log-band rows when visual on (§T88)
+		MaxFPS:   DefaultMaxFPS,   // cap repaints (§T74); 0 = unlimited
+		LogLines: DefaultLogLines, // log-band rows when visual on (§T88)
 	}
 }
 
@@ -38,12 +36,6 @@ type cvar struct {
 
 // cvars is the registry of console-settable config variables (§T39/§T40).
 var cvars = []cvar{
-	{"cl_silent_chat_commands", "apply !war/!peace/… locally without sending to server (0/1)",
-		func(c *Config) string { return b2s(c.SilentChatCmds) },
-		func(c *Config, v string) { c.SilentChatCmds = s2b(v) }},
-	{"cl_war_list_auto_reload", "reload the warlist file every N seconds (0=off)",
-		func(c *Config) string { return itoa(c.WarListReload) },
-		func(c *Config, v string) { c.WarListReload = clampAtoi(v, 0, 3600) }},
 	{"cl_max_fps", "cap render repaints per second (0=unlimited)",
 		func(c *Config) string { return itoa(c.MaxFPS) },
 		func(c *Config, v string) { c.MaxFPS = clampAtoi(v, 0, 1000) }},
@@ -60,25 +52,6 @@ func findCvar(name string) *cvar {
 		}
 	}
 	return nil
-}
-
-// b2s / s2b convert a bool config value to/from its console string form. s2b
-// treats "1", "true", "on", "yes" (case-insensitive) as true; everything else
-// is false.
-func b2s(b bool) string {
-	if b {
-		return "1"
-	}
-	return "0"
-}
-
-func s2b(s string) bool {
-	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "1", "true", "on", "yes":
-		return true
-	default:
-		return false
-	}
 }
 
 // itoa / clampAtoi convert an int cvar to/from its console string form, clamping

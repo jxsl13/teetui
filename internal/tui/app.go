@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -76,16 +75,13 @@ type App struct {
 	dialer         func(addr string, ver packet.Version) *client.Client
 	frontendCancel context.CancelFunc // stops RunFrontends of the current session
 
-	warlist    *Warlist
 	keymap     *Keymap
 	playerName string
 	playerClan string     // our clan tag, for chat-query answers (§T62)
 	cfg        *Config    // console-settable client config (§T39/§T40)
 	cfgMu      sync.Mutex // guards a.cfg vs off-main readers (callbacks/loops, §V4)
 
-	warlistPath  string       // path of the loaded warlist, for auto-reload (§T66)
-	warlistMtime time.Time    // last-seen warlist mtime (reload goroutine only)
-	limiter      frameLimiter // render repaint throttle (§T73), Run goroutine only
+	limiter frameLimiter // render repaint throttle (§T73), Run goroutine only
 
 	// feature-module registries (§T76): populated by Host calls during Provision.
 	dynVars      map[string]*dynVar                            // feature-defined cvars
@@ -136,7 +132,6 @@ func NewAppWithScreen(scr tcell.Screen, server string, state *State, input *Inpu
 		histCon:  NewHistory(64),
 		histRcon: NewHistory(64),
 		browser:  NewBrowser(),
-		warlist:  NewWarlist(),
 		keymap:   DefaultKeymap(),
 		cfg:      NewConfig(),
 		sendBuf:  newSendBuffer(sendMinInterval, sendQueueMax), // spam-safe send (§T65)
@@ -162,11 +157,6 @@ func NewAppWithScreen(scr tcell.Screen, server string, state *State, input *Inpu
 	})
 	a.loadHistory()
 	if p, err := configDir(); err == nil {
-		a.warlistPath = filepath.Join(p, "warlist.txt")
-		_ = a.warlist.Load(a.warlistPath)
-		if fi, err := os.Stat(a.warlistPath); err == nil {
-			a.warlistMtime = fi.ModTime()
-		}
 		_ = a.browser.LoadFavorites(filepath.Join(p, "favorites.txt"))
 		_ = a.keymap.Load(filepath.Join(p, "keymap.txt")) // rebindable keys (§V19/§T42)
 		// Opt-in external command hooks: registered only if ~/.config/teetui/hooks
@@ -289,9 +279,6 @@ func (a *App) Stop() {
 		a.frontendCancel()
 	}
 	a.saveHistory()
-	if p, err := configDir(); err == nil {
-		_ = a.warlist.Save(filepath.Join(p, "warlist.txt"))
-	}
 	select {
 	case <-a.quit:
 	default:
@@ -327,52 +314,12 @@ func (a *App) flushSend(msg string, team bool) {
 	}
 }
 
-// reloadWarlistLoop re-reads the warlist file when it changes on disk, every
-// cl_war_list_auto_reload seconds, so external edits apply live (§T66). 0 = off.
-func (a *App) reloadWarlistLoop() {
-	t := time.NewTicker(time.Second)
-	defer t.Stop()
-	var last time.Time
-	for {
-		select {
-		case <-a.quit:
-			return
-		case now := <-t.C:
-			iv := a.cfgSnap().WarListReload
-			if iv <= 0 || now.Sub(last) < time.Duration(iv)*time.Second {
-				continue
-			}
-			last = now
-			a.checkWarlistReload()
-		}
-	}
-}
-
-// checkWarlistReload reloads the warlist if its file mtime advanced (§T66).
-func (a *App) checkWarlistReload() {
-	if a.warlistPath == "" {
-		return
-	}
-	fi, err := os.Stat(a.warlistPath)
-	if err != nil {
-		return
-	}
-	if fi.ModTime().After(a.warlistMtime) {
-		if err := a.warlist.Load(a.warlistPath); err == nil {
-			a.warlistMtime = fi.ModTime()
-			a.log.Addf(StyleSystem, "warlist reloaded")
-			a.wake()
-		}
-	}
-}
-
 // Run renders until quit. It returns after restoring the terminal.
 func (a *App) Run() {
 	defer a.scr.Fini()
 	events := make(chan tcell.Event, 16)
 	go a.scr.ChannelEvents(events, a.quit)
-	go a.drainSends()        // pace outgoing chat (§T65)
-	go a.reloadWarlistLoop() // live warlist reload (§T66)
+	go a.drainSends() // pace outgoing chat (§T65)
 
 	// Render throttle (§T73/§V42): repaints are capped at cl_max_fps. Events are
 	// always handled immediately (input never stalls), but the repaint they
@@ -675,9 +622,11 @@ func (a *App) autoReplyPing() {
 // queryEnv snapshots the read-only state a chat-query answer may use (§T62/§V34).
 func (a *App) queryEnv() queryEnv {
 	env := queryEnv{
-		warlist:  a.warlist,
 		selfClan: a.playerClan,
 		goos:     runtime.GOOS,
+	}
+	if wl, ok := a.services["warlist"].(feature.Warlist); ok {
+		env.warlist = wl
 	}
 	if c := a.cli.Load(); c != nil {
 		for _, p := range c.Roster() {
@@ -872,19 +821,9 @@ func (a *App) do(act client.Action) {
 	}
 }
 
-// chatLine submits a chat line, intercepting warlist "!" commands first. With
-// cl_silent_chat_commands a handled command is applied locally and not sent to
-// the server (§T22, §V14).
+// chatLine submits a chat line. Warlist "!" commands are intercepted by the
+// warlist feature's OnSendChat hook inside sendChat (§T78/§V14).
 func (a *App) chatLine(text string, team bool) {
-	if res := parseChatCommand(text, a.warlist); res.Handled {
-		for _, l := range res.Reply {
-			a.log.Addf(StyleSystem, "! %s", l)
-		}
-		if !a.cfg.SilentChatCmds {
-			a.sendChat(text, team)
-		}
-		return
-	}
 	a.sendChat(text, team)
 }
 
@@ -1348,7 +1287,7 @@ func (a *App) draw() {
 	if a.visual && lay.Game.H > 0 {
 		a.drawScene(lay.Game, st)
 		if a.scoreboard && have {
-			DrawScoreboard(a.scr, lay.Game, st, a.warlist)
+			DrawScoreboard(a.scr, lay.Game, st, a.nameStyle)
 		}
 		// While a join is in flight (no map/snapshot yet) show the indeterminate
 		// connecting / map-download indicator over the game window (§T33).

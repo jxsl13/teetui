@@ -10,6 +10,15 @@ import (
 	"github.com/gdamore/tcell/v2"
 	"github.com/jxsl13/teetui/internal/tui"
 	"github.com/jxsl13/twclient/packet"
+
+	// Load the same feature modules main does, so the e2e UI exercises the real
+	// feature set (warlist cvars, etc.) — mirrors §C21 main wiring.
+	_ "github.com/jxsl13/teetui/features/chatfilter"
+	_ "github.com/jxsl13/teetui/features/chillpw"
+	_ "github.com/jxsl13/teetui/features/lastping"
+	_ "github.com/jxsl13/teetui/features/responders"
+	_ "github.com/jxsl13/teetui/features/team"
+	_ "github.com/jxsl13/teetui/features/warlist"
 )
 
 // This file drives the FULL teetui terminal UI against the live dockerized

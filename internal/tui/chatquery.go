@@ -3,14 +3,16 @@ package tui
 import (
 	"fmt"
 	"strings"
+
+	"github.com/jxsl13/teetui/feature"
 )
 
 // queryEnv is the read-only state a chat-query answer may draw on (§T62/§V34).
 // Answers come ONLY from these fields — teetui never fabricates an answer.
 type queryEnv struct {
-	warlist     *Warlist
-	rosterNames []string // names currently on the server, for "is X war?"
-	selfClan    string   // our clan tag, for "how to join your clan"
+	warlist     feature.Warlist // warlist service ("" relation = neutral); nil = absent
+	rosterNames []string        // names currently on the server, for "is X war?"
+	selfClan    string          // our clan tag, for "how to join your clan"
 	haveCoords  bool
 	coordX      int
 	coordY      int
@@ -43,7 +45,7 @@ func composeQueryReply(msg, from string, env queryEnv) (string, bool) {
 
 	// "why do you kill me?" → our war standing toward the asker (check war self).
 	if isQuestionWhy(msg) && findAnyWord(msg, "kill", "killed", "kills", "killst", "tötest") {
-		if env.warlist != nil && env.warlist.Get(from) == RelWar {
+		if env.warlist != nil && env.warlist.Relation(from) == "war" {
 			if reason := env.warlist.Reason(from); reason != "" {
 				return fmt.Sprintf("%s because: %s", from, reason), true
 			}
@@ -55,8 +57,8 @@ func composeQueryReply(msg, from string, env queryEnv) (string, bool) {
 	// "list your wars" / "who do you war?"
 	if env.warlist != nil && (containsAny(msg, "list war", "your wars", "list your war", "who do you war", "show wars") ||
 		(findWord(msg, "wars") && hasQuestionMark(msg))) {
-		wars := env.warlist.NamesWith(RelWar)
-		clans := env.warlist.ClansWith(RelWar)
+		wars := env.warlist.NamesWith("war")
+		clans := env.warlist.ClansWith("war")
 		if len(wars) == 0 && len(clans) == 0 {
 			return from + " no wars", true
 		}
@@ -74,11 +76,11 @@ func composeQueryReply(msg, from string, env queryEnv) (string, bool) {
 				continue
 			}
 			if findWord(msg, name) {
-				rel := env.warlist.Get(name)
-				if rel == RelNeutral {
+				rel := env.warlist.Relation(name)
+				if rel == "" {
 					return fmt.Sprintf("%s %s is neutral", from, name), true
 				}
-				ans := fmt.Sprintf("%s %s is %s", from, name, relationName(rel))
+				ans := fmt.Sprintf("%s %s is %s", from, name, rel)
 				if reason := env.warlist.Reason(name); reason != "" {
 					ans += " (" + reason + ")"
 				}

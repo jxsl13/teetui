@@ -45,11 +45,15 @@ func playerLabel(p client.PlayerState) string {
 	return fmt.Sprintf("#%d", p.ClientID)
 }
 
+// nameStyler returns a per-name tint contributed by the warlist feature
+// (§T78/§V14); nil disables tinting.
+type nameStyler func(name, clan string) (tcell.Style, bool)
+
 // DrawScoreboard overlays the player table on the game region, sorted by score,
 // with name and clan from the in-session roster (twclient §I.PlayerState). The
-// local player is highlighted; others are tinted by their warlist relation
-// (§T21/§V14). A nil warlist disables tinting.
-func DrawScoreboard(s tcell.Screen, r Rect, st client.TickState, w *Warlist) {
+// local player is highlighted; others are tinted by the styler (warlist relation,
+// §T21/§V14). A nil styler disables tinting.
+func DrawScoreboard(s tcell.Screen, r Rect, st client.TickState, styler nameStyler) {
 	if r.W < 12 || r.H < 2 {
 		return
 	}
@@ -61,21 +65,19 @@ func DrawScoreboard(s tcell.Screen, r Rect, st client.TickState, w *Warlist) {
 		if row >= r.H {
 			break
 		}
-		style := scoreRowStyle(p, st.LocalID, w)
+		style := scoreRowStyle(p, st.LocalID, styler)
 		drawStr(s, r.X, r.Y+row, r.W, style, " "+scoreboardLine(p))
 		row++
 	}
 }
 
-// scoreRowStyle picks the row color: local > warlist relation > present/absent.
-func scoreRowStyle(p client.PlayerState, localID int, w *Warlist) tcell.Style {
+// scoreRowStyle picks the row color: local > name styler > present/absent.
+func scoreRowStyle(p client.PlayerState, localID int, styler nameStyler) tcell.Style {
 	if p.Local || p.ClientID == localID {
 		return StyleSelf
 	}
-	if w != nil {
-		// Clan war colors players too: a per-name relation wins, else the relation
-		// of the player's clan tag applies (§T24/§V14).
-		if st, ok := w.EffectiveStyle(p.Name, p.Clan); ok {
+	if styler != nil {
+		if st, ok := styler(p.Name, p.Clan); ok {
 			return st
 		}
 	}

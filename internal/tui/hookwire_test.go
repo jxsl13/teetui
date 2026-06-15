@@ -63,8 +63,8 @@ func TestHookCtxSurface(t *testing.T) {
 	if ctx.Server() != "test:8303" {
 		t.Errorf("Server() = %q", ctx.Server())
 	}
-	if v, ok := ctx.Config("cl_silent_chat_commands"); !ok || v != "1" {
-		t.Errorf("Config(cl_silent_chat_commands) = %q,%v", v, ok)
+	if v, ok := ctx.Config("cl_log_lines"); !ok || v != "10" {
+		t.Errorf("Config(cl_log_lines) = %q,%v", v, ok)
 	}
 	if _, ok := ctx.Config("does_not_exist"); ok {
 		t.Error("unknown cvar should report not found")

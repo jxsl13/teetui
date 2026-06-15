@@ -54,23 +54,23 @@ func TestRunConsole(t *testing.T) {
 func TestConsoleCvars(t *testing.T) {
 	cfg := NewConfig()
 
-	// Bare cvar prints its current value.
-	if r := runConsole("cl_silent_chat_commands", cfg); r.Out[0] != `cl_silent_chat_commands = "1"` {
+	// Bare cvar prints its current value (cl_log_lines default 10).
+	if r := runConsole("cl_log_lines", cfg); r.Out[0] != `cl_log_lines = "10"` {
 		t.Errorf("get default = %q", r.Out[0])
 	}
 	// Setting mutates cfg and echoes the new value.
-	if r := runConsole("cl_silent_chat_commands 0", cfg); r.Out[0] != `cl_silent_chat_commands set to "0"` {
+	if r := runConsole("cl_log_lines 5", cfg); r.Out[0] != `cl_log_lines set to "5"` {
 		t.Errorf("set = %q", r.Out[0])
 	}
-	if cfg.SilentChatCmds {
-		t.Error("cl_silent_chat_commands should be off after set 0")
+	if cfg.LogLines != 5 {
+		t.Error("cl_log_lines should be 5 after set")
 	}
 
 	// help <cmd> yields the help-text line; unknown is reported.
 	if r := runConsole("help echo", cfg); r.Out[0] != builtinHelp["echo"] {
 		t.Errorf("help echo = %q", r.Out[0])
 	}
-	if h := consoleHelp("cl_silent_chat_commands"); h == "" {
+	if h := consoleHelp("cl_log_lines"); h == "" {
 		t.Error("consoleHelp for cvar should be non-empty")
 	}
 	if h := consoleHelp("nope"); h != "" {

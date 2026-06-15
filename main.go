@@ -18,6 +18,7 @@ import (
 	_ "github.com/jxsl13/teetui/features/lastping"
 	_ "github.com/jxsl13/teetui/features/responders"
 	_ "github.com/jxsl13/teetui/features/team"
+	_ "github.com/jxsl13/teetui/features/warlist"
 )
 
 func main() {

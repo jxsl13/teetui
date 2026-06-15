@@ -115,6 +115,17 @@ type PingStore interface {
 	NextReply() (from, msg string, ok bool)
 }
 
+// Warlist is the cross-feature service the warlist feature Provides (name
+// "warlist") for the chat-query feature to read (§T78/§T80). Relations are
+// strings ("war"/"peace"/"team"/"" for neutral) so consumers need not import the
+// warlist's relation enum.
+type Warlist interface {
+	Relation(name string) string // "" | "war" | "peace" | "team"
+	Reason(name string) string   // war reason ("" if none)
+	NamesWith(relation string) []string
+	ClansWith(relation string) []string
+}
+
 // NopFeature is a no-op Hooks implementation; embed it so a feature only
 // overrides the events it cares about. (It does NOT supply Name/Provision —
 // those are mandatory per feature.)

@@ -7,7 +7,6 @@ import "github.com/jxsl13/teetui/lang"
 // logic is extracted into feature packages (T79-T82), which import lang directly.
 var (
 	containsAny     = lang.ContainsAny
-	containsName    = lang.ContainsName
 	findWord        = lang.FindWord
 	findAnyWord     = lang.FindAnyWord
 	hasQuestionMark = lang.HasQuestionMark
