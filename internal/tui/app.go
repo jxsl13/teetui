@@ -70,10 +70,12 @@ type App struct {
 	dialer         func(addr string, ver packet.Version) *client.Client
 	frontendCancel context.CancelFunc // stops RunFrontends of the current session
 
-	warlist        *Warlist
-	keymap         *Keymap
-	playerName     string
-	silentChatCmds bool
+	warlist    *Warlist
+	keymap     *Keymap
+	playerName string
+	cfg        *Config // console-settable client config (§T39/§T40)
+
+	tappedOutAt time.Time // last auto tapped-out reply, for rate limiting (§T40)
 
 	mu       sync.Mutex // guards popup + ping + sent (callback goroutines)
 	popup    Popup
@@ -111,7 +113,7 @@ func NewApp(server string, state *State, input *InputController, log *Log) (*App
 		browser:        NewBrowser(),
 		warlist:        NewWarlist(),
 		keymap:         DefaultKeymap(),
-		silentChatCmds: true, // cl_silent_chat_commands default on (§V14)
+		cfg:            NewConfig(),
 		visual:         true,
 		popup:          greetingPopup(), // startup greeting (§T31)
 		quit:           make(chan struct{}),
@@ -174,6 +176,29 @@ func (a *App) NoteChat(from, msg string) {
 	a.mu.Lock()
 	a.pingFrom, a.pingMsg, a.pingAt = from, msg, time.Now()
 	a.mu.Unlock()
+	a.maybeTappedOut()
+}
+
+// tappedOutInterval rate-limits the auto tapped-out reply so a burst of pings
+// does not spam the chat (§T40).
+const tappedOutInterval = 30 * time.Second
+
+// maybeTappedOut sends the configured tapped-out auto-reply when the feature is
+// enabled and we were just pinged, at most once per tappedOutInterval (§T40).
+// Off by default — teetui is interactive, not a headless AFK bot.
+func (a *App) maybeTappedOut() {
+	if a.cfg == nil || !a.cfg.TappedOut || a.cfg.TappedOutText == "" {
+		return
+	}
+	a.mu.Lock()
+	if time.Since(a.tappedOutAt) < tappedOutInterval {
+		a.mu.Unlock()
+		return
+	}
+	a.tappedOutAt = time.Now()
+	text := a.cfg.TappedOutText
+	a.mu.Unlock()
+	a.sendChat(text, false)
 }
 
 // SetDialer installs the factory used to (re)build a client when joining a
@@ -629,7 +654,7 @@ func (a *App) chatLine(text string, team bool) {
 		for _, l := range res.Reply {
 			a.log.Addf(StyleSystem, "! %s", l)
 		}
-		if !a.silentChatCmds {
+		if !a.cfg.SilentChatCmds {
 			a.sendChat(text, team)
 		}
 		return
@@ -694,7 +719,7 @@ func (a *App) IsOwnEcho(clientID int, msg string) bool {
 
 // runLocal executes a local-console line (§T39).
 func (a *App) runLocal(line string) {
-	r := runConsole(line)
+	r := runConsole(line, a.cfg)
 	for _, o := range r.Out {
 		a.log.Addf(StyleSystem, "] %s", o)
 	}
@@ -1113,6 +1138,15 @@ func (a *App) drawInput(r Rect) {
 			}
 			if list != "" {
 				drawStr(a.scr, cx, r.Y, r.X+r.W-cx, StyleGhost, list)
+			}
+			// Local-console help-text line: once the command word is known and
+			// nothing is being completed, show its one-line help (§T39, ←
+			// chillerbot help-text line).
+			if a.mode == modeLocalCon && ghost == "" && list == "" {
+				cmd, _, _ := strings.Cut(strings.TrimSpace(a.line.String()), " ")
+				if h := consoleHelp(cmd); h != "" {
+					drawStr(a.scr, cx, r.Y, r.X+r.W-cx, StyleGhost, "  "+h)
+				}
 			}
 		}
 	default:

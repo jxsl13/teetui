@@ -208,8 +208,8 @@ T35|x|visual-mode toggle key `v`: show/hide game render, resize-safe via Sync (�
 T36|x|action keys: self-kill `k`→ActKill, emote `e`→ActEmoticon, vote F5/F6→ActVote (← transcript K self-kill)|V12,I.twclient
 T37|x|spectate/pause: console `spec/spectate/pause [name]` → name→id via Roster → ActSetSpectator (free-view when no name) (← transcript pause follow)|V12,I.twclient
 T38|x|input readline edit: Ctrl-U/Ctrl-K/Ctrl-W kill + cursor move (Left/Right/Home/End) (← transcript Ctrl-U/K); tab name-complete TODO|I.windows
-T39|~|local console F1: command interpreter (help/echo/say/quit/version) + history DONE; twclient config cmds + tab-complete + help-text line TODO (← transcript F1)|I.modes,V9
-T40|~|chillerbot AFK: `H` reply-to-ping DONE (T23); auto tapped-out message + `cl_tapped_out_message` toggle TODO (off by default — teetui is interactive, not AFK)|I.config
+T39|x|local console F1: command interpreter (help/echo/say/spec/quit/version) + history + config cvars (get/set) + tab-complete + per-command help-text line DONE (← transcript F1)|I.modes,V9
+T40|x|chillerbot AFK: `H` reply-to-ping DONE (T23); auto tapped-out message + `cl_tapped_out_message`/`_text` cvars + rate-limit DONE (off by default — teetui is interactive, not AFK)|I.config
 T41|x|reconcile keymap to §I key-binding table (?/B/F1/F2/T/Z/H/V/K/Tab//) — supersedes foundation `t`/`y`/`h`/`q`|I.modes,V17
 T42|x|rebindable keymap: config file load/save, default = §I table, runtime bind (exceed reference)|V19,C12
 T43|x|render-quality: Start/Finish/Checkpoint colored via MapView booleans DONE (Tele/Boost via class); sub-cell → T46; smooth camera (eased cameraSmoother, §T43) DONE|C11,V20,I.render

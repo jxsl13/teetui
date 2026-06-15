@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -16,20 +17,77 @@ type conResult struct {
 	SpecName string
 }
 
-// runConsole parses and dispatches a local-console command line. It is pure
-// (no client/screen access) so it is unit-tested; side effects (quit, chat) are
-// returned for the app to apply. Mirrors the F1 local console of chillerbot.
-func runConsole(line string) conResult {
+// builtinHelp is the per-command help text for the fixed (non-cvar) console
+// commands (← chillerbot console help-text line, §T39).
+var builtinHelp = map[string]string{
+	"help":    "help [command] — list commands or show help for one",
+	"echo":    "echo <text> — print text to the log",
+	"say":     "say <message> — send a chat message",
+	"spec":    "spec [name] — spectate a player (free view if no name)",
+	"version": "version — show the client/library version",
+	"quit":    "quit — exit teetui",
+}
+
+// consoleCommands is the completion candidate set for the local console (§T15):
+// the built-in commands plus every config cvar, sorted.
+var consoleCommands = func() []string {
+	out := []string{"echo", "exit", "help", "quit", "say", "spec", "version"}
+	for _, c := range cvars {
+		out = append(out, c.name)
+	}
+	sort.Strings(out)
+	return out
+}()
+
+// consoleHelp returns the one-line help text for the command currently being
+// typed, or "" if it is unknown/empty. Used for the inline help-text line shown
+// below the console prompt (§T39, ← chillerbot help-text line). Pure, tested.
+func consoleHelp(cmd string) string {
+	cmd = strings.TrimSpace(cmd)
+	if cmd == "" {
+		return ""
+	}
+	if h, ok := builtinHelp[cmd]; ok {
+		return h
+	}
+	if c := findCvar(cmd); c != nil {
+		return cmd + " — " + c.help
+	}
+	return ""
+}
+
+// runConsole parses and dispatches a local-console command line against cfg. It
+// is pure (no client/screen access) so it is unit-tested; side effects (quit,
+// chat, cvar mutation on cfg) are returned/applied for the app. Mirrors the F1
+// local console of chillerbot, including config cvars and per-command help.
+func runConsole(line string, cfg *Config) conResult {
 	line = strings.TrimSpace(line)
 	if line == "" {
 		return conResult{}
 	}
 	cmd, rest, _ := strings.Cut(line, " ")
 	rest = strings.TrimSpace(rest)
+
+	// Config cvar: bare name prints "name = value"; with an argument it sets it.
+	if c := findCvar(cmd); c != nil {
+		if rest == "" {
+			return conResult{Out: []string{fmt.Sprintf("%s = %q", c.name, c.get(cfg))}}
+		}
+		c.set(cfg, rest)
+		return conResult{Out: []string{fmt.Sprintf("%s set to %q", c.name, c.get(cfg))}}
+	}
+
 	switch cmd {
 	case "help", "?":
+		if rest != "" { // per-command help-text line
+			if h := consoleHelp(rest); h != "" {
+				return conResult{Out: []string{h}}
+			}
+			return conResult{Out: []string{fmt.Sprintf("no help for %q", rest)}}
+		}
 		return conResult{Out: []string{
-			"commands: help, echo <text>, say <msg>, spec [name], quit, version",
+			"commands: help [cmd], echo <text>, say <msg>, spec [name], quit, version",
+			"config: " + strings.Join(cvarNames(), ", "),
 		}}
 	case "echo":
 		return conResult{Out: []string{rest}}
@@ -39,7 +97,7 @@ func runConsole(line string) conResult {
 		}
 		return conResult{Chat: rest}
 	case "version":
-		return conResult{Out: []string{"teetui (twclient v0.2.2)"}}
+		return conResult{Out: []string{"teetui (twclient v0.2.4)"}}
 	case "spec", "spectate", "pause":
 		return conResult{Spectate: true, SpecName: rest} // rest "" → free view
 	case "quit", "exit":
@@ -47,4 +105,13 @@ func runConsole(line string) conResult {
 	default:
 		return conResult{Out: []string{fmt.Sprintf("unknown command: %q (try 'help')", cmd)}}
 	}
+}
+
+// cvarNames returns the registered cvar names in registry order.
+func cvarNames() []string {
+	out := make([]string, len(cvars))
+	for i, c := range cvars {
+		out[i] = c.name
+	}
+	return out
 }

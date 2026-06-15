@@ -11,7 +11,7 @@ func TestRunConsole(t *testing.T) {
 		quit bool
 	}{
 		{"", "", "", false},
-		{"help", "commands: help, echo <text>, say <msg>, spec [name], quit, version", "", false},
+		{"help", "commands: help [cmd], echo <text>, say <msg>, spec [name], quit, version", "", false},
 		{"echo hello there", "hello there", "", false},
 		{"say gg wp", "", "gg wp", false},
 		{"say", "usage: say <message>", "", false},
@@ -19,8 +19,9 @@ func TestRunConsole(t *testing.T) {
 		{"exit", "", "", true},
 		{"bogus x", `unknown command: "bogus" (try 'help')`, "", false},
 	}
+	cfg := NewConfig()
 	for _, c := range cases {
-		r := runConsole(c.in)
+		r := runConsole(c.in, cfg)
 		if r.Quit != c.quit {
 			t.Errorf("%q: quit=%v want %v", c.in, r.Quit, c.quit)
 		}
@@ -37,14 +38,53 @@ func TestRunConsole(t *testing.T) {
 	}
 
 	// §T37: spectate/pause parsing.
-	if r := runConsole("spec Nameless"); !r.Spectate || r.SpecName != "Nameless" {
+	if r := runConsole("spec Nameless", cfg); !r.Spectate || r.SpecName != "Nameless" {
 		t.Errorf("spec parse: %+v", r)
 	}
-	if r := runConsole("pause"); !r.Spectate || r.SpecName != "" {
+	if r := runConsole("pause", cfg); !r.Spectate || r.SpecName != "" {
 		t.Errorf("pause free-view: %+v", r)
 	}
-	if r := runConsole("spectate Foo Bar"); !r.Spectate || r.SpecName != "Foo Bar" {
+	if r := runConsole("spectate Foo Bar", cfg); !r.Spectate || r.SpecName != "Foo Bar" {
 		t.Errorf("spectate multiword: %+v", r)
+	}
+}
+
+// §T39: config cvars are readable and settable from the console, and unknown
+// help is reported. §T40: the tapped-out cvar toggles the auto-reply.
+func TestConsoleCvars(t *testing.T) {
+	cfg := NewConfig()
+
+	// Bare cvar prints its current value.
+	if r := runConsole("cl_silent_chat_commands", cfg); r.Out[0] != `cl_silent_chat_commands = "1"` {
+		t.Errorf("get default = %q", r.Out[0])
+	}
+	// Setting mutates cfg and echoes the new value.
+	if r := runConsole("cl_silent_chat_commands 0", cfg); r.Out[0] != `cl_silent_chat_commands set to "0"` {
+		t.Errorf("set = %q", r.Out[0])
+	}
+	if cfg.SilentChatCmds {
+		t.Error("cl_silent_chat_commands should be off after set 0")
+	}
+
+	// §T40: tapped-out toggle + text.
+	runConsole("cl_tapped_out_message on", cfg)
+	if !cfg.TappedOut {
+		t.Error("cl_tapped_out_message should be on")
+	}
+	runConsole("cl_tapped_out_message_text brb food", cfg)
+	if cfg.TappedOutText != "brb food" {
+		t.Errorf("tapped-out text = %q", cfg.TappedOutText)
+	}
+
+	// help <cmd> yields the help-text line; unknown is reported.
+	if r := runConsole("help echo", cfg); r.Out[0] != builtinHelp["echo"] {
+		t.Errorf("help echo = %q", r.Out[0])
+	}
+	if h := consoleHelp("cl_tapped_out_message"); h == "" {
+		t.Error("consoleHelp for cvar should be non-empty")
+	}
+	if h := consoleHelp("nope"); h != "" {
+		t.Errorf("consoleHelp unknown = %q want empty", h)
 	}
 }
 

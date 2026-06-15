@@ -5,9 +5,6 @@ import (
 	"strings"
 )
 
-// consoleCommands is the completion candidate set for the local console (§T15).
-var consoleCommands = []string{"echo", "exit", "help", "quit", "say", "version"}
-
 // currentWord returns the start index and the whitespace-delimited word ending
 // at the cursor (the token completion operates on).
 func currentWord(runes []rune, cur int) (int, string) {
