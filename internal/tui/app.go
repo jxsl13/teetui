@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -82,12 +83,11 @@ type App struct {
 	tappedOutAt time.Time // last auto tapped-out reply, for rate limiting (§T40)
 	autoReplyAt time.Time // last cl_auto_reply, for rate limiting (§T61)
 
-	mu       sync.Mutex // guards popup + ping + sent (callback goroutines)
-	popup    Popup
-	pingFrom string
-	pingMsg  string
-	pingAt   time.Time
-	sent     []sentChat // recently sent chat, for own-echo dedupe (§V29)
+	mu        sync.Mutex // guards popup + sent (callback goroutines)
+	popup     Popup
+	pings     *pingQueue // last-16 pings, newest-first (§T63)
+	pingCycle int        // H reply cursor into pings (0 = newest), guarded by mu
+	sent      []sentChat // recently sent chat, for own-echo dedupe (§V29)
 
 	quit chan struct{}
 }
@@ -126,6 +126,7 @@ func NewAppWithScreen(scr tcell.Screen, server string, state *State, input *Inpu
 		warlist:  NewWarlist(),
 		keymap:   DefaultKeymap(),
 		cfg:      NewConfig(),
+		pings:    newPingQueue(16), // last-16 ping history (§T63)
 		visual:   true,
 		popup:    greetingPopup(), // startup greeting (§T31)
 		quit:     make(chan struct{}),
@@ -185,8 +186,9 @@ func (a *App) NoteChat(from, msg string) {
 	if from == a.playerName || !containsName(msg, a.playerName) {
 		return
 	}
+	a.pings.push(from, msg, time.Now())
 	a.mu.Lock()
-	a.pingFrom, a.pingMsg, a.pingAt = from, msg, time.Now()
+	a.pingCycle = 0 // a new ping resets the H reply cursor to newest
 	a.mu.Unlock()
 	a.maybeTappedOut()
 	a.maybeAutoReply(from, msg)
@@ -535,13 +537,23 @@ func (a *App) doAction(act KeyAction) {
 // where, OS, …, §T62), then the canned context reply (§T61), then a friendly
 // default — always addressed to the pinger.
 func (a *App) autoReplyPing() {
+	// Cycle through the recent-ping queue: each H press answers one older ping
+	// (newest first), so repeated H walks back through pending pings (§T63).
 	a.mu.Lock()
-	from, msg, at := a.pingFrom, a.pingMsg, a.pingAt
+	i := a.pingCycle
 	a.mu.Unlock()
-	if from == "" || time.Since(at) > 2*time.Minute {
+	p, ok := a.pings.at(i)
+	if !ok {
 		a.log.Addf(StyleSystem, "no recent ping to reply to")
+		a.mu.Lock()
+		a.pingCycle = 0
+		a.mu.Unlock()
 		return
 	}
+	a.mu.Lock()
+	a.pingCycle = i + 1 // next H replies the next-older ping
+	a.mu.Unlock()
+	from, msg := p.from, p.msg
 	if reply, ok := composeQueryReply(msg, from, a.queryEnv()); ok {
 		a.sendChat(reply, false)
 		return
@@ -1199,6 +1211,11 @@ func (a *App) draw() {
 	}
 
 	status := statusText(a.modeLabel(), a.server, a.connStatus(), st, have)
+	if a.cfg.ShowLastPing { // optional last-ping readout (§T63)
+		if p, ok := a.pings.newest(); ok {
+			status += fmt.Sprintf("| ping %s: %s ", p.from, p.msg)
+		}
+	}
 	for x := 0; x < lay.Status.W; x++ {
 		a.scr.SetContent(x, lay.Status.Y, ' ', nil, StyleStatus)
 	}

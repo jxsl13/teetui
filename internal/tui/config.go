@@ -16,6 +16,7 @@ type Config struct {
 	TappedOutText  string // the auto tapped-out reply
 	AutoReply      bool   // auto-reply with AutoReplyMsg on every ping (§T61)
 	AutoReplyMsg   string // cl_auto_reply_msg template (%n → author)
+	ShowLastPing   bool   // show the most recent ping in the status bar (§T63)
 }
 
 // NewConfig returns the default configuration (§T39/§T40/§T61 defaults).
@@ -55,6 +56,9 @@ var cvars = []cvar{
 	{"cl_auto_reply_msg", "auto-reply template; %n = the pinger's name",
 		func(c *Config) string { return c.AutoReplyMsg },
 		func(c *Config, v string) { c.AutoReplyMsg = v }},
+	{"cl_show_last_ping", "show the most recent chat ping in the status bar (0/1)",
+		func(c *Config) string { return b2s(c.ShowLastPing) },
+		func(c *Config, v string) { c.ShowLastPing = s2b(v) }},
 }
 
 // findCvar returns the cvar named name, or nil.
