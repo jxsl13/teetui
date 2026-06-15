@@ -186,7 +186,7 @@ T28|x|help page content + key cheatsheet, `?`/Esc toggle, always escapable (← 
 T29|x|write README.md: usage + full attributions/credits/references (chillerbot-ux/ChillerDragon, DDNet, Teeworlds, twclient, tcell, runewidth) + licenses|V15,I.cli
 T30|x|log scrollback: PageUp/PageDown + mouse-wheel scroll, follow-tail (← transcript scroll log)|I.windows
 T31|x|startup greeting popup w/ keybind hints, Enter close (← transcript boot menu)|I.windows,V11,V17
-T32|~|browser tabs + ←/→ switch + `/` search + highlight + Enter join: have Internet/DDNet/KoG/Vanilla (gametype-derived); LAN/Favorites → T45|I.windows,V13
+T32|x|browser tabs Internet/LAN/Favorites/DDNet/KoG/Vanilla + ←/→ switch + `/` search + Enter join + `f` favorite|I.windows,V13
 T33|.|map download progress bar on join (← transcript download bar)|I.windows
 T34|x|in-game HUD: live local-tee coords (tile x,y) readout (← transcript coords change on move)|I.render
 T35|x|visual-mode toggle key `v`: show/hide game render, resize-safe via Sync (← transcript visual mode)|I.modes,V11,V18
@@ -199,7 +199,7 @@ T41|.|reconcile keymap to §I key-binding table (?/B/F1/F2/T/Z/H/V/K/Tab//) — 
 T42|.|rebindable keymap: config file load/save, default = §I table, runtime bind (exceed reference)|V19,C12
 T43|~|render-quality: Start/Finish/Checkpoint colored via MapView booleans DONE (Tele/Boost via class); sub-cell → T46; smooth camera TODO|C11,V20,I.render
 T44|.|parity-checklist verify: each §T30-41 feature ≥ chillerbot; doc gaps|C10,V20
-T45|.|browser LAN + Favorites tabs: favorites persist ~/.config/teetui/favorites + add/remove key; LAN = connless scan of local subnet (completes T32)|I.windows,V13
+T45|x|browser LAN + Favorites: favorites persist ~/.config/teetui/favorites.txt + `f` toggle + Favorites tab; LAN = connless probe of localhost ports (subnet broadcast would need twclient support)|I.windows,V13
 T46|.|render sub-cell detail: half-block ▀▄ (2 tiles/cell vertical) | braille mode for finer map; toggle/auto (completes T43 sub-cell)|C11,V20,I.render
 T47|x|render checkpoint tile color (orange, glyph 'C') via twclient v0.2.2 `MapView.Checkpoint`; precedence finish>start>checkpoint (← chillerbot colorCheckpoint)|C11,I.render
 

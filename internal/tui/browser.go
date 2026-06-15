@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 
@@ -22,22 +24,33 @@ type serverRow struct {
 	Version    packet.Version
 }
 
-// browserTabs are the filter categories (← transcript Internet/LAN/Favorites/
-// DDNet/KoG; LAN/Favorites need local state, deferred — these are the network
-// categories we can derive from the master list).
-var browserTabs = []string{"Internet", "DDNet", "KoG", "Vanilla"}
+// Browser tab indices (← transcript Internet/LAN/Favorites/DDNet/KoG).
+const (
+	tabInternet = iota
+	tabLAN
+	tabFavorites
+	tabDDNet
+	tabKoG
+	tabVanilla
+)
 
-// tabMatch reports whether a row belongs to tab i.
-func tabMatch(tab int, r serverRow) bool {
+var browserTabs = []string{"Internet", "LAN", "Favorites", "DDNet", "KoG", "Vanilla"}
+
+// tabMatch reports whether a row belongs to tab i. Internet/LAN pass everything
+// (LAN draws from a separate scanned source); Favorites checks the fav set; the
+// rest filter by gametype.
+func tabMatch(tab int, r serverRow, fav map[string]bool) bool {
 	gt := strings.ToLower(r.GameType)
 	switch tab {
-	case 1: // DDNet
+	case tabFavorites:
+		return fav[r.Addr]
+	case tabDDNet:
 		return strings.Contains(gt, "ddnet") || strings.Contains(gt, "ddrace") || strings.Contains(gt, "gores")
-	case 2: // KoG
+	case tabKoG:
 		return strings.Contains(gt, "kog") || strings.Contains(gt, "block")
-	case 3: // Vanilla
+	case tabVanilla:
 		return strings.Contains(gt, "dm") || strings.Contains(gt, "ctf") || strings.Contains(gt, "tdm") || strings.Contains(gt, "vanilla")
-	default: // Internet
+	default: // Internet, LAN
 		return true
 	}
 }
@@ -48,17 +61,19 @@ func tabMatch(tab int, r serverRow) bool {
 type Browser struct {
 	mu      sync.Mutex
 	all     []serverRow
+	lanRows []serverRow // LAN-scanned servers (separate source)
 	view    []serverRow
 	tab     int
 	search  []rune
 	sel     int
 	loading bool
 	err     string
-	bsearch bool // search input focused
+	bsearch bool            // search input focused
+	fav     map[string]bool // favorite addresses
 }
 
 // NewBrowser returns an empty browser.
-func NewBrowser() *Browser { return &Browser{} }
+func NewBrowser() *Browser { return &Browser{fav: map[string]bool{}} }
 
 // SetLoading marks an in-flight fetch.
 func (b *Browser) SetLoading(v bool) { b.mu.Lock(); b.loading = v; b.err = ""; b.mu.Unlock() }
@@ -97,9 +112,13 @@ func (b *Browser) refilter() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	term := strings.ToLower(strings.TrimSpace(string(b.search)))
+	source := b.all
+	if b.tab == tabLAN {
+		source = b.lanRows
+	}
 	b.view = b.view[:0]
-	for _, r := range b.all {
-		if !tabMatch(b.tab, r) {
+	for _, r := range source {
+		if !tabMatch(b.tab, r, b.fav) {
 			continue
 		}
 		if term != "" && !strings.Contains(strings.ToLower(r.Name), term) &&
@@ -169,12 +188,82 @@ func (b *Browser) Selected() (serverRow, bool) {
 	return b.view[b.sel], true
 }
 
+// ToggleFavorite flips the favorite flag for the selected server and returns its
+// address (§T45). Empty if nothing selected.
+func (b *Browser) ToggleFavorite() string {
+	r, ok := b.Selected()
+	if !ok {
+		return ""
+	}
+	b.mu.Lock()
+	if b.fav[r.Addr] {
+		delete(b.fav, r.Addr)
+	} else {
+		b.fav[r.Addr] = true
+	}
+	b.mu.Unlock()
+	b.refilter()
+	return r.Addr
+}
+
+// SetLAN installs the LAN-scanned rows and refilters.
+func (b *Browser) SetLAN(rows []serverRow) {
+	b.mu.Lock()
+	b.lanRows = rows
+	b.loading = false
+	b.mu.Unlock()
+	b.refilter()
+}
+
+// Tab returns the active tab index.
+func (b *Browser) Tab() int { b.mu.Lock(); defer b.mu.Unlock(); return b.tab }
+
+// LoadFavorites reads one address per line; a missing file is not an error.
+func (b *Browser) LoadFavorites(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	fav := map[string]bool{}
+	for _, line := range strings.Split(string(data), "\n") {
+		if a := strings.TrimSpace(line); a != "" {
+			fav[a] = true
+		}
+	}
+	b.mu.Lock()
+	b.fav = fav
+	b.mu.Unlock()
+	return nil
+}
+
+// SaveFavorites writes the favorite addresses, one per line.
+func (b *Browser) SaveFavorites(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	b.mu.Lock()
+	var sb strings.Builder
+	for a := range b.fav {
+		sb.WriteString(a)
+		sb.WriteByte('\n')
+	}
+	b.mu.Unlock()
+	return os.WriteFile(path, []byte(sb.String()), 0o644)
+}
+
 // DrawBrowser renders the full-screen browser overlay (§T18/§T32).
 func DrawBrowser(s tcell.Screen, w, h int, b *Browser) {
 	b.mu.Lock()
 	tab, sel, loading, errStr, search, bsearch := b.tab, b.sel, b.loading, b.err, string(b.search), b.bsearch
 	view := make([]serverRow, len(b.view))
 	copy(view, b.view)
+	fav := make(map[string]bool, len(b.fav))
+	for a := range b.fav {
+		fav[a] = true
+	}
 	b.mu.Unlock()
 
 	for y := 0; y < h; y++ {
@@ -205,7 +294,7 @@ func DrawBrowser(s tcell.Screen, w, h int, b *Browser) {
 		if bsearch {
 			cur += "_"
 		}
-		drawStr(s, 1, statusY, w-1, StyleChat, fmt.Sprintf("%-40s  %d servers   [Enter]join [/]search [←/→]tab [B/Esc]close", cur, len(view)))
+		drawStr(s, 1, statusY, w-1, StyleChat, fmt.Sprintf("%-40s  %d servers   [Enter]join [/]search [f]fav [←/→]tab [B/Esc]close", cur, len(view)))
 	}
 
 	// Header + rows.
@@ -222,12 +311,15 @@ func DrawBrowser(s tcell.Screen, w, h int, b *Browser) {
 		if r.Version == packet.Version07 {
 			ver = "0.7"
 		}
-		lock := " "
+		mark := " "
+		if fav[r.Addr] {
+			mark = "*"
+		}
 		if r.Passworded {
-			lock = "🔒"
+			mark = "#"
 		}
 		line := fmt.Sprintf("%s%-30s %-10s %-14s %2d/%-2d  %s",
-			lock, padCol(r.Name, 30), padCol(r.GameType, 10), padCol(r.MapName, 14), r.Players, r.MaxPlayers, ver)
+			mark, padCol(r.Name, 30), padCol(r.GameType, 10), padCol(r.MapName, 14), r.Players, r.MaxPlayers, ver)
 		st := StyleChat
 		if i == sel {
 			st = StyleStatus

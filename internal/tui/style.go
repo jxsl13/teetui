@@ -15,17 +15,17 @@ func fg(r, g, b int32) tcell.Style {
 // Entity styles, ported from the chillerbot-ux renderer RGB values
 // (src/.../chillerbot, renderer.go in twclient cmd/ml).
 var (
-	StyleSelf       = fg(255, 50, 50)   // own tee — red
-	StyleOther      = fg(60, 120, 255)  // other tees — blue
-	StyleHook       = fg(255, 230, 0)   // hook — yellow
-	StyleProjectile = fg(255, 160, 0)   // projectiles — orange
-	StyleLaser      = fg(180, 0, 255)   // laser beams — violet
+	StyleSelf       = fg(255, 50, 50)  // own tee — red
+	StyleOther      = fg(60, 120, 255) // other tees — blue
+	StyleHook       = fg(255, 230, 0)  // hook — yellow
+	StyleProjectile = fg(255, 160, 0)  // projectiles — orange
+	StyleLaser      = fg(180, 0, 255)  // laser beams — violet
 	StyleStatus     = tcell.StyleDefault.Reverse(true)
 	StyleChat       = fg(220, 220, 220)
 	StyleSystem     = fg(255, 220, 120)
-	StyleStart      = fg(0, 255, 0)     // race start — green
-	StyleFinish     = fg(255, 0, 255)   // race finish — magenta
-	StyleCheckpoint = fg(255, 180, 0)   // race checkpoint — orange (← chillerbot)
+	StyleStart      = fg(0, 255, 0)   // race start — green
+	StyleFinish     = fg(255, 0, 255) // race finish — magenta
+	StyleCheckpoint = fg(255, 180, 0) // race checkpoint — orange (← chillerbot)
 )
 
 // specialGlyph returns the glyph/style overlay for race start/finish/checkpoint

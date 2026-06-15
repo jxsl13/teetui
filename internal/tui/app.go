@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -110,8 +111,17 @@ func NewApp(server string, state *State, input *InputController, log *Log) (*App
 	a.loadHistory()
 	if p, err := configDir(); err == nil {
 		_ = a.warlist.Load(filepath.Join(p, "warlist.txt"))
+		_ = a.browser.LoadFavorites(filepath.Join(p, "favorites.txt"))
 	}
 	return a, nil
+}
+
+// favPath returns the favorites file path (best-effort).
+func (a *App) favPath() string {
+	if p, err := configDir(); err == nil {
+		return filepath.Join(p, "favorites.txt")
+	}
+	return ""
 }
 
 func (a *App) loadHistory() {
@@ -663,8 +673,10 @@ func (a *App) handleBrowser(ev *tcell.EventKey) {
 		a.browser.Move(10)
 	case tcell.KeyLeft:
 		a.browser.SetTab(-1)
+		a.maybeScanLAN()
 	case tcell.KeyRight:
 		a.browser.SetTab(1)
+		a.maybeScanLAN()
 	case tcell.KeyEnter:
 		if r, ok := a.browser.Selected(); ok {
 			a.mode = modeNormal
@@ -676,10 +688,54 @@ func (a *App) handleBrowser(ev *tcell.EventKey) {
 			a.mode = modeNormal
 		case '/':
 			a.browser.FocusSearch(true)
+		case 'f':
+			if a.browser.ToggleFavorite() != "" {
+				if p := a.favPath(); p != "" {
+					_ = a.browser.SaveFavorites(p)
+				}
+			}
 		case 'r':
-			a.openBrowser()
+			if a.browser.Tab() == tabLAN {
+				a.maybeScanLAN()
+			} else {
+				a.openBrowser()
+			}
 		}
 	}
+}
+
+// maybeScanLAN probes the local machine for servers when the LAN tab is active
+// (§T45). Best-effort connless queries on common local ports.
+func (a *App) maybeScanLAN() {
+	if a.browser.Tab() != tabLAN {
+		return
+	}
+	a.browser.SetLoading(true)
+	go func() {
+		ports := []int{8303, 8304, 8305, 8306, 8307}
+		vers := []packet.Version{packet.Version06, packet.Version07}
+		m := master.New()
+		var rows []serverRow
+		for _, port := range ports {
+			addr := fmt.Sprintf("127.0.0.1:%d", port)
+			for _, v := range vers {
+				ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+				info, err := m.QueryServerInfo(ctx, v, addr)
+				cancel()
+				if err != nil {
+					continue
+				}
+				rows = append(rows, serverRow{
+					Addr: addr, Name: info.Name, GameType: info.GameType,
+					MapName: info.MapName, Players: info.NumClients,
+					MaxPlayers: info.MaxClients, Passworded: info.Passworded, Version: v,
+				})
+				break // one version per port is enough
+			}
+		}
+		a.browser.SetLAN(rows)
+		a.wake()
+	}()
 }
 
 // join closes the current session and connects to addr at ver, reusing the

@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/gdamore/tcell/v2"
@@ -34,7 +35,7 @@ func TestBrowserTabs(t *testing.T) {
 	if got := len(b.view); got != 3 {
 		t.Errorf("internet tab = %d want 3", got)
 	}
-	b.SetTab(1) // DDNet
+	b.SetTab(tabDDNet) // from Internet(0) +3 → DDNet
 	if len(b.view) != 1 || b.view[0].Name != "DDNet GER" {
 		t.Errorf("DDNet tab = %v", b.view)
 	}
@@ -42,6 +43,32 @@ func TestBrowserTabs(t *testing.T) {
 	if len(b.view) != 1 || b.view[0].Name != "KoG Server" {
 		t.Errorf("KoG tab = %v", b.view)
 	}
+}
+
+// §T45: favorites toggle + filter + persistence round-trip.
+func TestBrowserFavorites(t *testing.T) {
+	b := sampleBrowser() // selection on first Internet row
+	addr := b.ToggleFavorite()
+	if addr == "" || !b.fav[addr] {
+		t.Fatalf("toggle did not favorite: %q", addr)
+	}
+	b.SetTab(tabFavorites)
+	if len(b.view) != 1 || b.view[0].Addr != addr {
+		t.Errorf("favorites tab = %v", b.view)
+	}
+
+	path := filepath.Join(t.TempDir(), "favorites.txt")
+	if err := b.SaveFavorites(path); err != nil {
+		t.Fatal(err)
+	}
+	b2 := sampleBrowser()
+	if err := b2.LoadFavorites(path); err != nil {
+		t.Fatal(err)
+	}
+	if !b2.fav[addr] {
+		t.Errorf("favorite not reloaded: %q", addr)
+	}
+	b.ToggleFavorite() // untoggle currently selected (favorites tab → the fav row)
 }
 
 // §T32: search filters by name/map substring.
