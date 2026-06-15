@@ -13,7 +13,6 @@ import (
 // teetui is an interactive client, not a headless bot.
 type Config struct {
 	SilentChatCmds bool // apply !commands locally without sending them (§V14)
-	ShowLastPing   bool // show the most recent ping in the status bar (§T63)
 	WarListReload  int  // reload warlist every N seconds; 0=off (§T66)
 	MaxFPS         int  // cap render repaints/sec; 0=unlimited (§T74)
 	LogLines       int  // log-band rows when the visual is on (§T88)
@@ -42,9 +41,6 @@ var cvars = []cvar{
 	{"cl_silent_chat_commands", "apply !war/!peace/… locally without sending to server (0/1)",
 		func(c *Config) string { return b2s(c.SilentChatCmds) },
 		func(c *Config, v string) { c.SilentChatCmds = s2b(v) }},
-	{"cl_show_last_ping", "show the most recent chat ping in the status bar (0/1)",
-		func(c *Config) string { return b2s(c.ShowLastPing) },
-		func(c *Config, v string) { c.ShowLastPing = s2b(v) }},
 	{"cl_war_list_auto_reload", "reload the warlist file every N seconds (0=off)",
 		func(c *Config) string { return itoa(c.WarListReload) },
 		func(c *Config, v string) { c.WarListReload = clampAtoi(v, 0, 3600) }},

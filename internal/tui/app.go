@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -98,12 +97,10 @@ type App struct {
 	services     map[string]any                                // cross-feature service registry
 	sendChatHook []func(msg string, team bool) (string, bool)  // outgoing-chat chain
 
-	mu        sync.Mutex // guards popup + sent (callback goroutines)
-	popup     Popup
-	pings     *pingQueue  // last-16 pings, newest-first (§T63)
-	pingCycle int         // H reply cursor into pings (0 = newest), guarded by mu
-	sendBuf   *sendBuffer // rate-limited outgoing chat queue (§T65)
-	sent      []sentChat  // recently sent chat, for own-echo dedupe (§V29)
+	mu      sync.Mutex // guards popup + sent (callback goroutines)
+	popup   Popup
+	sendBuf *sendBuffer // rate-limited outgoing chat queue (§T65)
+	sent    []sentChat  // recently sent chat, for own-echo dedupe (§V29)
 
 	quit chan struct{}
 }
@@ -142,7 +139,6 @@ func NewAppWithScreen(scr tcell.Screen, server string, state *State, input *Inpu
 		warlist:  NewWarlist(),
 		keymap:   DefaultKeymap(),
 		cfg:      NewConfig(),
-		pings:    newPingQueue(16),                             // last-16 ping history (§T63)
 		sendBuf:  newSendBuffer(sendMinInterval, sendQueueMax), // spam-safe send (§T65)
 		visual:   true,
 		popup:    greetingPopup(), // startup greeting (§T31)
@@ -232,19 +228,6 @@ func (a *App) Client() *client.Client { return a.cli.Load() }
 
 // SetName records the local player name for ping detection (§T23).
 func (a *App) SetName(name string) { a.playerName = name }
-
-// NoteChat is called for every incoming chat line (from the twclient callback
-// goroutine). If the line pings us it is queued for the H reply (§V4). The
-// auto-responders (tapped-out / cl_auto_reply) now live in features/responders.
-func (a *App) NoteChat(from, msg string) {
-	if from == a.playerName || !containsName(msg, a.playerName) {
-		return
-	}
-	a.pings.push(from, msg, time.Now())
-	a.mu.Lock()
-	a.pingCycle = 0 // a new ping resets the H reply cursor to newest
-	a.mu.Unlock()
-}
 
 // SetDialer installs the factory used to (re)build a client when joining a
 // server from the browser (§T18). main supplies it so callbacks stay wired.
@@ -666,23 +649,18 @@ func (a *App) doAction(act KeyAction) {
 // where, OS, …, §T62), then the canned context reply (§T61), then a friendly
 // default — always addressed to the pinger.
 func (a *App) autoReplyPing() {
-	// Cycle through the recent-ping queue: each H press answers one older ping
-	// (newest first), so repeated H walks back through pending pings (§T63).
-	a.mu.Lock()
-	i := a.pingCycle
-	a.mu.Unlock()
-	p, ok := a.pings.at(i)
-	if !ok {
+	// The ping history + H cursor live in the lastping feature (§T83); pull the
+	// next ping to reply to from its "pings" service.
+	store, _ := a.services["pings"].(feature.PingStore)
+	if store == nil {
 		a.log.Addf(StyleSystem, "no recent ping to reply to")
-		a.mu.Lock()
-		a.pingCycle = 0
-		a.mu.Unlock()
 		return
 	}
-	a.mu.Lock()
-	a.pingCycle = i + 1 // next H replies the next-older ping
-	a.mu.Unlock()
-	from, msg := p.from, p.msg
+	from, msg, ok := store.NextReply()
+	if !ok {
+		a.log.Addf(StyleSystem, "no recent ping to reply to")
+		return
+	}
 	if reply, ok := composeQueryReply(msg, from, a.queryEnv()); ok {
 		a.sendChat(reply, false)
 		return
@@ -1384,11 +1362,7 @@ func (a *App) draw() {
 	}
 
 	status := statusText(a.modeLabel(), a.server, a.connStatus(), st, have)
-	if a.cfg.ShowLastPing { // optional last-ping readout (§T63)
-		if p, ok := a.pings.newest(); ok {
-			status += fmt.Sprintf("| ping %s: %s ", p.from, p.msg)
-		}
-	}
+	// last-ping readout now contributed by features/lastping via AddStatusField.
 	for _, fn := range a.statusFields { // feature status contributions (§T76)
 		if s := fn(); s != "" {
 			status += "| " + s + " "

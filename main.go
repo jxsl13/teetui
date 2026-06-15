@@ -15,6 +15,7 @@ import (
 	// enable. Add a feature = add a package + one import line here.
 	_ "github.com/jxsl13/teetui/features/chatfilter"
 	_ "github.com/jxsl13/teetui/features/chillpw"
+	_ "github.com/jxsl13/teetui/features/lastping"
 	_ "github.com/jxsl13/teetui/features/responders"
 	_ "github.com/jxsl13/teetui/features/team"
 )

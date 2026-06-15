@@ -105,6 +105,16 @@ type Feature interface {
 	Hooks
 }
 
+// PingStore is the cross-feature service the lastping feature Provides (under the
+// name "pings") and the reply feature Looks up (§T83/§T79): a newest-first
+// history of chat lines that mentioned us. Newest is for display; NextReply
+// drives the H reply, walking from newest to older on repeated calls (the cursor
+// resets when a new ping arrives).
+type PingStore interface {
+	Newest() (from, msg string, ok bool)
+	NextReply() (from, msg string, ok bool)
+}
+
 // NopFeature is a no-op Hooks implementation; embed it so a feature only
 // overrides the events it cares about. (It does NOT supply Name/Provision —
 // those are mandatory per feature.)

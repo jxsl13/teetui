@@ -58,7 +58,7 @@ func (a *App) DefaultDialer(name, clan, skin string) func(addr string, ver packe
 				who = fmt.Sprintf("%d", e.ClientID) // id fallback when name empty (§V26)
 			}
 			a.log.Addf(StyleChat, "[%s] %s", who, e.Msg)
-			a.NoteChat(from, e.Msg)
+			// ping tracking now lives in features/lastping (its OnChat fires above).
 		})
 		c.OnServerMsg(func(_ *client.Client, e packet.EventServerMsg) {
 			if extension.Count() > 0 {
