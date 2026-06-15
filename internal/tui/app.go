@@ -554,18 +554,10 @@ func (a *App) submit() {
 // the matches (§T15).
 func (a *App) complete() {
 	runes := []rune(a.line.String())
-	cur := a.line.Cursor()
-	if cur > len(runes) {
-		cur = len(runes)
-	}
-	start := cur
-	for start > 0 && runes[start-1] != ' ' {
-		start--
-	}
+	start, prefix := currentWord(runes, a.line.Cursor())
 	if a.compActive && start == a.compStart && len(a.compMatches) > 0 {
 		a.compIdx = (a.compIdx + 1) % len(a.compMatches)
 	} else {
-		prefix := string(runes[start:cur])
 		a.compMatches = completeMatches(prefix, a.completionCandidates())
 		a.compIdx = 0
 		a.compStart = start
@@ -1093,6 +1085,19 @@ func (a *App) drawInput(r Rect) {
 		}
 		drawStr(a.scr, r.X, r.Y, r.W, StyleChat, prompt+shown)
 		a.scr.ShowCursor(r.X+len(prompt)+a.line.Cursor(), r.Y)
+		// Grey inline completion preview after the cursor (§T15) — not while
+		// masking a password.
+		if a.mode != modeRconAuth {
+			_, prefix := currentWord([]rune(a.line.String()), a.line.Cursor())
+			ghost, list := completionPreview(prefix, a.completionCandidates())
+			cx := r.X + len(prompt) + a.line.Cursor()
+			if ghost != "" {
+				cx += drawStr(a.scr, cx, r.Y, r.X+r.W-cx, StyleGhost, ghost)
+			}
+			if list != "" {
+				drawStr(a.scr, cx, r.Y, r.X+r.W-cx, StyleGhost, list)
+			}
+		}
 	default:
 		a.scr.HideCursor()
 		drawStr(a.scr, r.X, r.Y, r.W, StyleSystem,

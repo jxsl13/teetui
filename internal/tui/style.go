@@ -23,9 +23,10 @@ var (
 	StyleStatus     = tcell.StyleDefault.Reverse(true)
 	StyleChat       = fg(220, 220, 220)
 	StyleSystem     = fg(255, 220, 120)
-	StyleStart      = fg(0, 255, 0)   // race start — green
-	StyleFinish     = fg(255, 0, 255) // race finish — magenta
-	StyleCheckpoint = fg(255, 180, 0) // race checkpoint — orange (← chillerbot)
+	StyleGhost      = fg(110, 110, 110) // dim completion preview (§T15)
+	StyleStart      = fg(0, 255, 0)     // race start — green
+	StyleFinish     = fg(255, 0, 255)   // race finish — magenta
+	StyleCheckpoint = fg(255, 180, 0)   // race checkpoint — orange (← chillerbot)
 )
 
 // halfBlockCell composes one terminal cell that packs two stacked map rows into

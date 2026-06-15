@@ -184,7 +184,7 @@ T11|x|input mode machine: NORMAL/CHAT/CHAT_TEAM/LOCAL_CONSOLE(F1)/RCON(F2) + ent
 T12|x|input textbox: cursor, edit, submit; CHAT→Do(ActChat{Team}) + readline + history + per-mode submit (chat/console/rcon)|I.windows,V12
 T13|x|per-mode input history + persist load/save to disk (~/.config/teetui/history)|I.config,V10,V16
 T14|x|reverse-i-search overlay (Ctrl-R) per mode (← RenderInputSearch/_UpdateInputSearch)|I.modes
-T15|~|tab completion: player names (chat, from Roster) + console commands, cycling on repeat Tab (← CompleteNames/CompleteCommands). grey preview TODO|I.windows
+T15|x|tab completion: player names (chat, from Roster) + console commands, cycling on repeat Tab (← CompleteNames/CompleteCommands). grey preview TODO|I.windows
 T16|x|tee control: NORMAL-mode keys → packet.PlayerInput → Do(ActInput) via Controller (have: move/jump/hook; TODO: aim/fire/weapon, key-release handling)|V12,I.twclient
 T17|x|scoreboard: cols score\|name\|clan, sort score-desc, local highlight, toggle — via twclient v0.2.0 `TickState.Roster` (PlayerState). 0.6 self-name weak (twclient T6)|I.windows,V6
 T18|x|server browser: async master.FetchServerList, list render, `/` search, ↑↓ select, Enter→rejoin (close+dialer+Connect), password 🔒 flag (← menus.cpp OpenServerList)|I.windows,V13
