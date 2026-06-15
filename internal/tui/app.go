@@ -62,8 +62,9 @@ type App struct {
 	scoreboard bool
 	hookOn     bool
 
-	browser *Browser
-	dialer  func(addr string, ver packet.Version) *client.Client
+	browser        *Browser
+	dialer         func(addr string, ver packet.Version) *client.Client
+	frontendCancel context.CancelFunc // stops RunFrontends of the current session
 
 	warlist        *Warlist
 	playerName     string
@@ -189,6 +190,9 @@ func (a *App) wake() { _ = a.scr.PostEvent(tcell.NewEventInterrupt(nil)) }
 
 // Stop persists history + warlist, tears the screen down and unblocks Run.
 func (a *App) Stop() {
+	if a.frontendCancel != nil {
+		a.frontendCancel()
+	}
 	a.saveHistory()
 	if p, err := configDir(); err == nil {
 		_ = a.warlist.Save(filepath.Join(p, "warlist.txt"))
@@ -735,7 +739,7 @@ func (a *App) handleBrowser(ev *tcell.EventKey) {
 	case tcell.KeyEnter:
 		if r, ok := a.browser.Selected(); ok {
 			a.mode = modeNormal
-			a.join(r.Addr, r.Version)
+			a.Join(r.Addr, r.Version)
 		}
 	default:
 		switch ev.Rune() {
@@ -793,11 +797,19 @@ func (a *App) maybeScanLAN() {
 	}()
 }
 
-// join closes the current session and connects to addr at ver, reusing the
-// client factory so callbacks stay wired (§T18, §V1).
-func (a *App) join(addr string, ver packet.Version) {
+// Join closes the current session and connects to addr at ver, reusing the
+// client factory so callbacks stay wired (§T18, §V1). On success it starts the
+// twclient frontend loop (RunFrontends) which is what actually drives the
+// Observer (render) and Controller (input) — without it nothing is dispatched
+// (§V22, §B2). RunFrontends uses a long-lived context, distinct from the
+// connect timeout.
+func (a *App) Join(addr string, ver packet.Version) {
 	if a.dialer == nil {
 		return
+	}
+	if a.frontendCancel != nil {
+		a.frontendCancel()
+		a.frontendCancel = nil
 	}
 	if old := a.cli.Load(); old != nil {
 		_ = old.Close()
@@ -806,16 +818,23 @@ func (a *App) join(addr string, ver packet.Version) {
 	a.server = addr
 	c := a.dialer(addr, ver)
 	a.SetClient(c)
+
+	fctx, fcancel := context.WithCancel(context.Background())
+	a.frontendCancel = fcancel
+
 	a.log.Addf(StyleSystem, "connecting to %s …", addr)
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 		defer cancel()
 		if err := c.Connect(ctx); err != nil {
 			a.log.Addf(StyleSelf, "connect failed: %v", err)
-		} else {
-			a.SetConnected(true)
-			a.log.Addf(StyleSystem, "connected.")
+			fcancel()
+			a.wake()
+			return
 		}
+		a.SetConnected(true)
+		a.log.Addf(StyleSystem, "connected.")
+		go c.RunFrontends(fctx) // drive observer (render) + controller (input)
 		a.wake()
 	}()
 }

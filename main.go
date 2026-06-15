@@ -4,7 +4,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -85,23 +84,12 @@ func run() error {
 	app.SetDialer(newClient)
 	app.SetName(*name) // for ping detection (§T23)
 
-	c := newClient(*server, ver)
-	app.SetClient(c)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go func() {
-		log.Addf(tui.StyleSystem, "connecting to %s (%s) …", *server, *version)
-		if err := c.Connect(ctx); err != nil {
-			log.Addf(tui.StyleSelf, "connect failed: %v", err)
-			return
-		}
-		app.SetConnected(true)
-		log.Addf(tui.StyleSystem, "connected.")
-	}()
+	// Initial connect goes through the same path as a browser join, so the
+	// twclient frontend loop (RunFrontends) is started — that is what drives
+	// the renderer and input (§V22, §B2).
+	app.Join(*server, ver)
 
 	app.Run() // blocks until quit; restores the terminal
-	cancel()
 	if cur := app.Client(); cur != nil {
 		cur.Close()
 	}
