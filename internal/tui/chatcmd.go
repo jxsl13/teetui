@@ -49,13 +49,13 @@ func parseChatCommand(line string, w *Warlist) chatCmdResult {
 		return chatCmdResult{Handled: true, Reply: []string{"cleared clan " + arg}}
 	case "war":
 		return setRelNames(w, arg, RelWar)
-	case "reason":
+	case "reason", "addreason":
 		return setReason(w, arg)
 	case "peace":
 		return setRelNames(w, arg, RelPeace)
 	case "team":
 		return setRelNames(w, arg, RelTeam)
-	case "delteam", "del", "delwar", "unwar":
+	case "delteam", "del", "delwar", "unwar", "unfriend":
 		if arg == "" {
 			return chatCmdResult{Handled: true, Reply: []string{"usage: !del <name>"}}
 		}
@@ -65,14 +65,53 @@ func parseChatCommand(line string, w *Warlist) chatCmdResult {
 			out = append(out, "cleared "+n)
 		}
 		return chatCmdResult{Handled: true, Reply: out}
+	case "search":
+		if arg == "" {
+			return chatCmdResult{Handled: true, Reply: []string{"usage: !search <name>"}}
+		}
+		matches := w.Search(arg)
+		if len(matches) == 0 {
+			return chatCmdResult{Handled: true, Reply: []string{"no warlist matches for " + arg}}
+		}
+		return chatCmdResult{Handled: true, Reply: matches}
+	case "create":
+		return createRel(w, arg)
 	case "help":
 		return chatCmdResult{Handled: true, Reply: []string{
-			"warlist: !war <name...>  !peace <name>  !team <name>  !del <name>",
-			"reason:  !reason <name> <text>   clan: !warclan/!peaceclan/!teamclan/!delclan <tag>",
+			"warlist: !war <name...>  !peace <name>  !team <name>  !del/!unfriend <name>",
+			"reason:  !reason/!addreason <name> <text>   search: !search <name>",
+			"create:  !create <war|team|neutral|traitor> <name>   clan: !warclan/!peaceclan/!teamclan/!delclan <tag>",
 		}}
 	default:
 		return chatCmdResult{} // unknown ! line → treat as normal chat
 	}
+}
+
+// createRel implements "!create <war|team|neutral|traitor> <name...>" (←
+// chillerbot chatcommands.h create). teetui's warlist is flat, so an optional
+// chillerbot [folder] is not used; "traitor" maps to war (teetui has no separate
+// traitor relation). neutral clears the relation.
+func createRel(w *Warlist, arg string) chatCmdResult {
+	kind, name, ok := strings.Cut(arg, " ")
+	name = strings.TrimSpace(name)
+	if !ok || name == "" {
+		return chatCmdResult{Handled: true, Reply: []string{"usage: !create <war|team|neutral|traitor> <name>"}}
+	}
+	var rel Relation
+	switch strings.ToLower(kind) {
+	case "war", "traitor":
+		rel = RelWar
+	case "team":
+		rel = RelTeam
+	case "peace":
+		rel = RelPeace
+	case "neutral":
+		rel = RelNeutral
+	default:
+		return chatCmdResult{Handled: true, Reply: []string{"unknown type " + kind + " (war|team|neutral|traitor)"}}
+	}
+	w.Set(name, rel)
+	return chatCmdResult{Handled: true, Reply: []string{"create " + relationName(rel) + " " + name}}
 }
 
 // setReason attaches a war reason to a name: "!reason <name> <text...>".

@@ -126,6 +126,30 @@ func (w *Warlist) NamesWith(r Relation) []string {
 	return out
 }
 
+// Search returns sorted "name (relation[: reason])" lines for every warlist name
+// containing sub (case-insensitive), for the !search chat command (§T67).
+func (w *Warlist) Search(sub string) []string {
+	low := strings.ToLower(sub)
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	var names []string
+	for n := range w.rel {
+		if sub == "" || strings.Contains(strings.ToLower(n), low) {
+			names = append(names, n)
+		}
+	}
+	sort.Strings(names)
+	out := make([]string, 0, len(names))
+	for _, n := range names {
+		line := n + " (" + relationName(w.rel[n])
+		if r := w.reasons[n]; r != "" {
+			line += ": " + r
+		}
+		out = append(out, line+")")
+	}
+	return out
+}
+
 // ClansWith returns the sorted clan tags assigned relation r (§T62).
 func (w *Warlist) ClansWith(r Relation) []string {
 	w.mu.Lock()
