@@ -13,11 +13,21 @@ type Layout struct {
 	Input  Rect // bottom row
 }
 
-// maxGameW caps the game view width (chillerbot frame is 64 tiles wide).
-const maxGameW = 66
+// Layout sizing guards. The game view takes ~2/3 of the width and SCALES with
+// the terminal — there is deliberately no fixed upper cap, so a larger terminal
+// renders more of the map at higher resolution (§C17/§V31; the old 64-tile
+// chillerbot frame is no longer a ceiling). The minimums keep both panes usable
+// on a narrow terminal: the log never drops below minLogW while the game can,
+// and the game never drops below minGameW while the log can.
+const (
+	minLogW  = 16
+	minGameW = 8
+)
 
-// Compute splits a w×h screen into the four windows. The game view takes the
-// left up to maxGameW, the log takes the remaining right column.
+// Compute splits a w×h screen into the four windows from the CURRENT terminal
+// size — called every render so the UI tracks live resizes (§C17/§V30). The game
+// view takes ~2/3 of the width and grows with the terminal (no cap); the log
+// takes the remaining right column, clamped to a usable minimum.
 func Compute(w, h int) Layout {
 	if w < 1 {
 		w = 1
@@ -29,8 +39,17 @@ func Compute(w, h int) Layout {
 	bodyH := h - 2 // rows between status (top) and input (bottom)
 
 	gameW := w * 2 / 3
-	if gameW > maxGameW {
-		gameW = maxGameW
+	// Keep the log readable: on a wide split scale the game down so the log gets
+	// at least minLogW (when the terminal is wide enough to afford it).
+	if w-1-gameW < minLogW {
+		gameW = w - 1 - minLogW
+	}
+	// Keep some game view: on a narrow terminal scale the log down instead.
+	if gameW < minGameW {
+		gameW = minGameW
+	}
+	if gameW > w {
+		gameW = w
 	}
 	logX := gameW + 1
 	logW := w - logX

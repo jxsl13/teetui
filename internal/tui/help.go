@@ -43,6 +43,13 @@ func drawHelp(s tcell.Screen, w, h int) {
 	}
 	boxW += 2
 	boxH := len(helpLines) + 2
+	// Clamp to the screen so a small terminal never draws past its bounds (§V30).
+	if boxW > w {
+		boxW = w
+	}
+	if boxH > h {
+		boxH = h
+	}
 	x0 := (w - boxW) / 2
 	y0 := (h - boxH) / 2
 	if x0 < 0 {

@@ -64,6 +64,14 @@ func drawPopup(s tcell.Screen, w, h int, p Popup) {
 	}
 	boxW += 4
 	boxH := len(lines) + 2
+	// Clamp the box to the screen so a small terminal never draws outside its
+	// bounds (§V30); drawStr already clips each line horizontally.
+	if boxW > w {
+		boxW = w
+	}
+	if boxH > h {
+		boxH = h
+	}
 	x0 := (w - boxW) / 2
 	y0 := (h - boxH) / 2
 	if x0 < 0 {

@@ -22,6 +22,7 @@ Re-impl chillerbot-ux ncurses `terminalui` as Go terminal client on `github.com/
 - C14: LIVE-TEST mandate (user). every feature/fix ! verified against a LIVE server before §T `x` — ⊥ claim done on build alone. teetui ! own e2e harness MIRRORING twclient repo `e2e/`: docker-compose w/ images built from source — **ddnet** (0.6 + 0.7-sixup) & **teeworlds7** (vanilla 0.7); gated by env `TW_E2E` + `-tags e2e`; addressed by compose service names (`ddnet:8303`, `teeworlds7:8303`), run IN-NETWORK. e2e asserts connect+snapshot ticks (via `RunFrontends`, V22). CI/CD ! run e2e + code coverage (race + `-coverprofile`, per-pkg %). ref twclient `e2e/{docker-compose.yml,ddnet.Dockerfile,teeworlds7.Dockerfile,harness_test.go}` + `.github/workflows/ci.yml`.
 - C15: macOS Docker host UDP port-forward BROKEN → host `localhost:8303/8307` connless/connect TIMES OUT. ⊥ test teetui connect from macOS host against docker; run inside compose net (service names) or real server. (← B3)
 - C16: PROCESS (user). any twclient BUG or MISSING functionality found → ALWAYS `gh issue create --repo jxsl13/twclient` (detailed English + repro + observed/expected + env). distinguish teetui-side (fix here) vs twclient-side (file issue). filed: #3 (0.6 registry empty), #4 (Connect ctx=lifetime footgun), #5 (v0.2.3 windows build).
+- C17: RESPONSIVE. UI ! adapt to terminal size + scale live w/ window resize (smaller→lower res, larger→higher res). ALL windows (status/game/log/input) + overlays (scoreboard/help/popup/browser) derived from current `scr.Size()` EACH render — ⊥ fixed-size assumption, ⊥ cached dims. game view scales w/ terminal (⊥ hard `maxGameW`/64×32 cap that wastes big terminals). below a min usable size → single legible "resize" notice, ⊥ garble/panic. resize event → immediate relayout+redraw (tcell cell-diff, C3/C7). (extends V11/V18; supersedes §I.render ≤64×32)
 
 ## §I — interfaces
 
@@ -85,7 +86,7 @@ packet.PlayerInput{...}  // movement/aim/jump/hook/fire/weapon
 + reverse-i-search overlay per mode. per-mode input history (16 deep), persisted to disk.
 
 ### render mapping (← maplayers.cpp / renderer.go tiles)
-camera: render_dist 16 tiles, frame ≤64w×32h, local tee centered (col 32,row 16). map `MapView` tile index → glyph+`tcell.Style`:
+camera: local tee centered in Game rect. frame = FULL Game rect (scales w/ terminal, T58/V31 — no fixed 64×32 cap; orig chillerbot frame was ≤64w×32h). map `MapView` tile index → glyph+`tcell.Style`:
 ```
 tile        glyph   color(chillerbot→teetui RGB)
 SOLID       █       grey {180,180,180}
@@ -166,6 +167,9 @@ keybinds NOT rebindable yet (chillerbot limitation; ?future config).
 - V27: game render ! work as SPECTATOR / when local tee absent — center camera on spectated target | free-view coords | any visible tee; ⊥ require `Players[LocalID]` (else blank "connecting…"). (← B6)
 - V28: connect-fail msg shown ONLY on terminal failure; ⊥ when a (re)connect then succeeds. connectTimeout generous/configurable for real-server map-download; watchdog ⊥ abort a still-progressing handshake. (← B7)
 - V29: sent chat ! echoed LOCALLY into log immediately (⊥ depend on server echo — some servers ⊥ echo own line; 0.6 echo has empty name). dedupe if server also echoes. (← B8)
+- V30: layout FULLY responsive — every window rect + EVERY overlay (scoreboard/help/popup/browser) computed from current terminal size each render; resize → immediate relayout+redraw; ⊥ stale dims, ⊥ draw past screen bounds (overlays clamp/reflow to fit), ⊥ crash on any size ≥ min. (extends V11/V18; C17)
+- V31: game render FILLS the available Game rect — camera frame = rect, scales UP and DOWN w/ terminal (larger terminal ⇒ more visible map = higher res); ⊥ hard-capped to fixed 64×32 (wastes big | garbles small); HUD/coords stay in-bounds. (C17, supersedes §I.render cap)
+- V32: below a min usable size (Wmin×Hmin, defined) UI degrades to ONE legible "terminal too small — resize to ≥ WxH" notice; ⊥ negative/zero-width draws, ⊥ panic; growing back ≥ min restores full UI identical to never-shrunk. (C17)
 
 ## §T — tasks
 
@@ -226,6 +230,9 @@ T53|x|FIX B6 spectator render: DrawGame/DrawGameHalf center on spectated target 
 T54|x|FIX B7 connect msg: raise connectTimeout (real-server map download) + make configurable; surface connect-fail in log ONLY on terminal failure (⊥ if a reconnect then succeeds)|V28,V25
 T55|x|FIX B8 own-chat: locally echo sent chat (all+team) into log immediately on send; dedupe the server echo (by msg+recent time)|V29,I.windows
 T56|x|B5 mitigation: scoreboard/chat id fallback when roster name empty (verify) + file twclient feature for 0.6 ClientInfo→registry decode (SPEC-player-registry T6)|V26
+T57|x|responsive layout: `Compute` scales game view w/ terminal (relax `maxGameW` so large terminals use more width, keep proportional split + min log width + min game width); overlays (scoreboard/help/popup/browser) clamp+reflow to current size, ⊥ overflow|C17,V30,I.windows
+T58|.|render fills Game rect at any size: camera frame = rect (drop 64×32 assumption), DrawGame/DrawGameHalf scale up/down, tee stays centered, HUD/coords in-bounds; test tiny+huge rects|C17,V31,I.render
+T59|.|min-size guard + live resize: below Wmin×Hmin show single "resize to ≥WxH" notice (⊥ garble/panic), restore on grow; EventResize → recompute+immediate redraw (not just Sync); test sub-min + round-trip|C17,V32,V30,V11
 
 ## §B — bugs
 

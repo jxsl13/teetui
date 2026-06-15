@@ -115,9 +115,6 @@ func TestComputeLayout(t *testing.T) {
 	if l.Status.Y != 0 || l.Input.Y != 29 {
 		t.Errorf("status/input rows wrong: %d %d", l.Status.Y, l.Input.Y)
 	}
-	if l.Game.W > maxGameW {
-		t.Errorf("game width %d exceeds cap %d", l.Game.W, maxGameW)
-	}
 	if l.Log.X != l.Game.W+1 {
 		t.Errorf("log x %d not right of game", l.Log.X)
 	}
