@@ -1,11 +1,39 @@
 name: CI
 
+# CI pipeline (SPEC T49 / C14 / V23).
+#
+# Jobs:
+#   test              cross-OS vet/build/test matrix. On Linux it additionally
+#                     runs the race detector with statement coverage
+#                     (-covermode=atomic -coverprofile), publishes a per-package
+#                     coverage table to the job summary and uploads coverage.out.
+#   build-e2e-images  matrix (ddnet ∥ teeworlds7): builds each e2e server image
+#                     FROM SOURCE (C14) via e2e/<service>.Dockerfile with a shared
+#                     gha layer cache. Runs concurrently with `test`.
+#   e2e               live parity tests, needs [test, build-e2e-images] → runs only
+#                     after both pass. Brings up the compose harness, then drives
+#                     the gated suite (TW_E2E=1, -tags e2e) IN-NETWORK against both
+#                     containers via the compose service names (ddnet:8303,
+#                     teeworlds7:8303), then tears down (C14/V23, mirrors twclient).
+
 on:
   push:
   pull_request:
 
 permissions:
   contents: read
+
+# Abort superseded runs: a new push/PR-update on the same ref cancels the
+# in-flight run for that ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Run JavaScript actions on Node 24 to clear the Node 20 deprecation warnings on
+# checkout/setup-go/upload-artifact/docker actions. Removable once Node 24 is the
+# runner default.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   test:
@@ -34,12 +62,132 @@ jobs:
         run: go build ./...
 
       # Race detector requires cgo, so it only runs on Linux with CGO enabled.
-      - name: Test (race)
+      # One pass: -race + statement coverage. tee keeps the per-package
+      # "coverage: N%" lines for the summary (no extra test run).
+      - name: Test (race + coverage)
         if: runner.os == 'Linux'
         env:
           CGO_ENABLED: 1
-        run: go test -race ./...
+        run: |
+          set -o pipefail
+          go test -race -covermode=atomic -coverprofile=coverage.out -timeout 10m ./... \
+            | tee coverage.log
 
       - name: Test
         if: runner.os != 'Linux'
         run: go test ./...
+
+      - name: Coverage report
+        if: always() && runner.os == 'Linux'
+        run: |
+          [ -f coverage.out ] || { echo "no coverage.out (test run produced no profile)"; exit 0; }
+          # Full per-function breakdown to the job log (also in the artifact).
+          go tool cover -func=coverage.out
+          total="$(go tool cover -func=coverage.out | awk '/^total:/ {print $3}')"
+          # Per-package statement % from the test run's own output (coverage.log).
+          pkgcov="$(awk '/coverage:/ {for(i=1;i<=NF;i++) if($i=="coverage:" && $(i+1) ~ /%$/) print "| `" $2 "` | " $(i+1) " |"}' coverage.log | sort)"
+          {
+            echo "## Code coverage"
+            echo ""
+            echo "**Total: ${total:-n/a}** — \`-race\` suite (reported, not gated)"
+            echo ""
+            echo "| package | coverage |"
+            echo "| --- | --- |"
+            echo "$pkgcov"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=Code coverage::total ${total:-n/a}"
+
+      - name: Upload coverage profile
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-profile
+          path: coverage.out
+          if-no-files-found: warn
+
+  build-e2e-images:
+    name: build e2e image ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [ddnet, teeworlds7]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build ${{ matrix.service }} image (source, cached)
+        uses: docker/build-push-action@v6
+        with:
+          context: e2e
+          file: e2e/${{ matrix.service }}.Dockerfile
+          load: true
+          tags: tw-e2e-${{ matrix.service }}:local
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+      - name: Smoke-test (server starts and stays up)
+        run: |
+          docker run -d --name smoke tw-e2e-${{ matrix.service }}:local
+          sleep 15
+          docker logs smoke || true
+          if [ "$(docker inspect -f '{{.State.Running}}' smoke)" != "true" ]; then
+            echo "::error::${{ matrix.service }} container is not running"
+            exit 1
+          fi
+          docker rm -f smoke
+
+  e2e:
+    name: live parity tests
+    needs: [test, build-e2e-images]
+    runs-on: ubuntu-latest
+    # Deterministic compose project name → predictable network name
+    # (teetui-e2e_default) for the in-network test container below.
+    env:
+      COMPOSE_PROJECT: teetui-e2e
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      # Rebuild both images from the warmed gha cache (cache hit → fast) and load
+      # them under the tags the compose file references, so `up` skips building.
+      - name: Load ddnet image (cached)
+        uses: docker/build-push-action@v6
+        with:
+          context: e2e
+          file: e2e/ddnet.Dockerfile
+          load: true
+          tags: tw-e2e-ddnet:local
+          cache-from: type=gha,scope=ddnet
+      - name: Load teeworlds7 image (cached)
+        uses: docker/build-push-action@v6
+        with:
+          context: e2e
+          file: e2e/teeworlds7.Dockerfile
+          load: true
+          tags: tw-e2e-teeworlds7:local
+          cache-from: type=gha,scope=teeworlds7
+      - name: Start harness
+        run: docker compose -p "$COMPOSE_PROJECT" -f e2e/docker-compose.yml up -d
+      - name: Wait for readiness
+        run: |
+          docker compose -p "$COMPOSE_PROJECT" -f e2e/docker-compose.yml ps
+          # Game servers bind their UDP port within a few seconds; give them a
+          # margin before the client starts connecting.
+          sleep 15
+      - name: Run live e2e suite (in-network)
+        run: |
+          # The harness addresses the servers by compose service name
+          # (ddnet:8303 / teeworlds7:8303, C14), which only resolves on the
+          # compose network — so run go test INSIDE a container attached to
+          # that network (the runner host has no go and cannot resolve the
+          # service-name DNS). The repo is bind-mounted so the container's go
+          # builds the gated tests from source.
+          docker run --rm --network "${COMPOSE_PROJECT}_default" \
+            -v "$PWD":/src -w /src \
+            -e TW_E2E=1 \
+            -e TW_E2E_DDNET_06=ddnet:8303 \
+            -e TW_E2E_DDNET_07=ddnet:8303 \
+            -e TW_E2E_VANILLA_07=teeworlds7:8303 \
+            golang:1.26 \
+            go test -tags e2e -count=1 -timeout 10m ./e2e/... -v
+      - name: Teardown
+        if: always()
+        run: docker compose -p "$COMPOSE_PROJECT" -f e2e/docker-compose.yml down

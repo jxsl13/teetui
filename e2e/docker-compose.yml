@@ -1,0 +1,48 @@
+# Reproducible e2e game-server harness for teetui (SPEC §C14 / §V23).
+#
+# Brings up TWO bot-populated game servers so the client can be exercised against
+# real snapshots containing multiple characters (+ CTF entities on vanilla):
+#
+#   ddnet       VANILLA DDNet sixup server: serves BOTH 0.6 and 0.7 on one UDP
+#               port (DDRace gametype — multi-character via dbg_dummies, no CTF
+#               flags). Backs teetui's ddnet-0.6 AND ddnet-0.7-sixup cases.
+#   teeworlds7  vanilla teeworlds 0.7.5 dedicated server on the stock ctf1 map.
+#               Backs teetui's vanilla-0.7 case.
+#
+# Both run `dbg_dummies 4` so their snapshots carry several characters.
+#
+# Addressed IN-NETWORK by compose service name (ddnet:8303, teeworlds7:8303):
+# macOS Docker host UDP port-forward is BROKEN (SPEC §C15 / §B3), so the test
+# MUST run inside this compose network, NOT from the host. The host port maps
+# below are decorative parity with twclient and unusable on macOS.
+#
+# Both upstream artifacts are amd64-only, so `platform` is pinned to
+# linux/amd64 (runs under emulation on Apple Silicon).
+#
+# Run (see README.md):
+#   docker compose -f e2e/docker-compose.yml up -d --build
+#   docker run --rm --network tw-e2e_default -v "$PWD":/teetui -w /teetui \
+#     -e GOFLAGS=-mod=mod -e TW_E2E=1 golang:1.26 \
+#     go test -tags e2e ./e2e/... -v -count=1
+name: tw-e2e
+
+services:
+  ddnet:
+    build:
+      context: .
+      dockerfile: ddnet.Dockerfile
+    image: tw-e2e-ddnet:local
+    platform: linux/amd64
+    ports:
+      - "8303:8303/udp"
+    restart: unless-stopped
+
+  teeworlds7:
+    build:
+      context: .
+      dockerfile: teeworlds7.Dockerfile
+    image: tw-e2e-teeworlds7:local
+    platform: linux/amd64
+    ports:
+      - "8307:8303/udp"
+    restart: unless-stopped

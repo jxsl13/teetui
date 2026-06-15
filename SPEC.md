@@ -19,6 +19,8 @@ Re-impl chillerbot-ux ncurses `terminalui` as Go terminal client on `github.com/
 - C11: RENDER > reference — full RGB truecolor (⊥ 6-pair curses), accurate+legible map (color Start/Finish/Checkpoint/Tele/Boost via `MapView` booleans, ⊥ blank), smooth camera, optional sub-cell glyphs (half-block ▀▄ / braille) for finer detail. reference render = self-described "cursed/WIP" — teetui ! readable + correct.
 - C12: UX > reference — keys REBINDABLE via config (reference can't, §V19), resize ⊥ glitch (V18), scroll ⊥ glitchy, popups/visual-mode clean open+close (reference "wonky/breaks on close"), help always escapable (V17).
 - C13: CODE quality — tested (table+sim-screen), clean pkg boundaries, ⊥ "duct tape". each §V invariant has ≥1 test.
+- C14: LIVE-TEST mandate (user). every feature/fix ! verified against a LIVE server before §T `x` — ⊥ claim done on build alone. teetui ! own e2e harness MIRRORING twclient repo `e2e/`: docker-compose w/ images built from source — **ddnet** (0.6 + 0.7-sixup) & **teeworlds7** (vanilla 0.7); gated by env `TW_E2E` + `-tags e2e`; addressed by compose service names (`ddnet:8303`, `teeworlds7:8303`), run IN-NETWORK. e2e asserts connect+snapshot ticks (via `RunFrontends`, V22). CI/CD ! run e2e + code coverage (race + `-coverprofile`, per-pkg %). ref twclient `e2e/{docker-compose.yml,ddnet.Dockerfile,teeworlds7.Dockerfile,harness_test.go}` + `.github/workflows/ci.yml`.
+- C15: macOS Docker host UDP port-forward BROKEN → host `localhost:8303/8307` connless/connect TIMES OUT. ⊥ test teetui connect from macOS host against docker; run inside compose net (service names) or real server. (← B3)
 
 ## §I — interfaces
 
@@ -58,6 +60,9 @@ callbacks: (*Client).OnChat/OnWhisper/OnBroadcast/OnServerMsg/OnVoteSet/OnVoteSt
 master.New(...Option) *Client
 (*master.Client).FetchServerList(ctx) ([]ServerEntry, error)
 (*master.Client).QueryServerInfo(ctx, packet.Version, addr) (ServerInfo, error)
+(*master.Client).ScanLAN(ctx, ...ScanOption) ([]LANServer, error)   // twclient v0.2.3: real LAN broadcast scan (0.6+0.7)
+master.LANServer{Addr string, Version packet.Version, Info ServerInfo}
+master.WithScanPorts(lo,hi)/WithBroadcastAddrs([]string)/WithScanTimeout(d) ScanOption // default ports 8303-8310, bcast 255.255.255.255, 2s
 master.ServerEntry{Addresses[]Address, Location string, Info packet.ServerInfo}
 packet.ServerInfo{Name,GameType,MapName,Passworded,NumPlayers,NumClients,
   MaxPlayers,MaxClients,Clients[]PlayerInfo}
@@ -153,6 +158,8 @@ keybinds NOT rebindable yet (chillerbot limitation; ?future config).
 - V20: ∀ chillerbot transcript feature → teetui equiv ≥ parity (C10 checklist). render legible+colored beyond 6-pair (C11). ⊥ ship feature strictly worse than reference.
 - V21: popup ⊥ swallow keys it advertises. greeting popup ! act on `B`→browser & `?`→help while shown (⊥ require Enter-first). (← B1)
 - V22: after EVERY successful `Connect`, ! `go Client.RunFrontends(fctx)` — that loop drives Observer(render)+Controller(input). `Connect` alone ⊥ dispatch. fctx long-lived (≠ connect timeout), cancelled on next Join/Stop. (← B2)
+- V23: ⊥ mark §T `x` w/o LIVE-server pass. connect+snapshot ! verified against live ddnet(0.6), ddnet-sixup(0.7) & teeworlds7(0.7) via e2e harness (C14). (← B3)
+- V24: connect failure ! surface actionable msg in log (addr + version + "check network"), ⊥ silent hang past timeout.
 
 ## §T — tasks
 
@@ -189,7 +196,7 @@ T29|x|write README.md: usage + full attributions/credits/references (chillerbot-
 T30|x|log scrollback: PageUp/PageDown + mouse-wheel scroll, follow-tail (← transcript scroll log)|I.windows
 T31|x|startup greeting popup w/ keybind hints, Enter close (← transcript boot menu)|I.windows,V11,V17
 T32|x|browser tabs Internet/LAN/Favorites/DDNet/KoG/Vanilla + ←/→ switch + `/` search + Enter join + `f` favorite|I.windows,V13
-T33|.|map download progress bar on join (← transcript download bar)|I.windows
+T33|~|map download progress bar on join (← transcript download bar)|I.windows
 T34|x|in-game HUD: live local-tee coords (tile x,y) readout (← transcript coords change on move)|I.render
 T35|x|visual-mode toggle key `v`: show/hide game render, resize-safe via Sync (← transcript visual mode)|I.modes,V11,V18
 T36|x|action keys: self-kill `k`→ActKill, emote `e`→ActEmoticon, vote F5/F6→ActVote (← transcript K self-kill)|V12,I.twclient
@@ -198,15 +205,20 @@ T38|x|input readline edit: Ctrl-U/Ctrl-K/Ctrl-W kill + cursor move (Left/Right/H
 T39|~|local console F1: command interpreter (help/echo/say/quit/version) + history DONE; twclient config cmds + tab-complete + help-text line TODO (← transcript F1)|I.modes,V9
 T40|~|chillerbot AFK: `H` reply-to-ping DONE (T23); auto tapped-out message + `cl_tapped_out_message` toggle TODO (off by default — teetui is interactive, not AFK)|I.config
 T41|.|reconcile keymap to §I key-binding table (?/B/F1/F2/T/Z/H/V/K/Tab//) — supersedes foundation `t`/`y`/`h`/`q`|I.modes,V17
-T42|.|rebindable keymap: config file load/save, default = §I table, runtime bind (exceed reference)|V19,C12
+T42|~|rebindable keymap: config file load/save, default = §I table, runtime bind (exceed reference)|V19,C12
 T43|~|render-quality: Start/Finish/Checkpoint colored via MapView booleans DONE (Tele/Boost via class); sub-cell → T46; smooth camera TODO|C11,V20,I.render
 T44|.|parity-checklist verify: each §T30-41 feature ≥ chillerbot; doc gaps|C10,V20
 T45|x|browser LAN + Favorites: favorites persist ~/.config/teetui/favorites.txt + `f` toggle + Favorites tab; LAN = connless probe of localhost ports (subnet broadcast would need twclient support)|I.windows,V13
 T46|.|render sub-cell detail: half-block ▀▄ (2 tiles/cell vertical) | braille mode for finer map; toggle/auto (completes T43 sub-cell)|C11,V20,I.render
 T47|x|render checkpoint tile color (orange, glyph 'C') via twclient v0.2.2 `MapView.Checkpoint`; precedence finish>start>checkpoint (← chillerbot colorCheckpoint)|C11,I.render
+T48|x|e2e harness `e2e/` mirroring twclient: docker-compose (ddnet 0.6+0.7-sixup, teeworlds7 vanilla 0.7, Dockerfiles from source), gated `-tags e2e`+`TW_E2E`, service-name addrs; test connects each + RunFrontends + asserts snapshot ticks + roster|C14,V22,V23
+T49|x|CI/CD e2e job: build server images (matrix), run `go test -tags e2e ./e2e/...` IN-NETWORK + race + coverage profile + per-pkg %; mirror twclient `.github/workflows/ci.yml`|C14,V23
+T50|~|connect UX: actionable timeout msg (addr/version/network) in log + reconnect/retry key; ?auto-detect protocol via connless `QueryServerInfo` probe before Connect|V24,I.windows
+T51|.|browser LAN tab → REAL subnet scan via twclient v0.2.3 `master.ScanLAN` (broadcast 0.6+0.7, dedupe), replacing localhost-port probe (upgrades T45). map `[]LANServer`→serverRow into LAN source|I.windows,V13
 
 ## §B — bugs
 
 id|date|cause|fix
 B1|2026-06-15|`B` server-browser key dead: startup greeting popup intercepted ALL keys in handlePopup (only Enter/Esc/?/q closed), so `B` swallowed & openBrowser unreachable while popup shown — though popup advertises "B server browser"|V21
 B2|2026-06-15|"connecting to servers does not work": teetui never called `Client.RunFrontends` → Observer(render)+Controller(input) NEVER dispatched. Connected & snaps ticked but UI stuck "connecting…" (observerTicks=0 vs snapTick advancing). fix: `go c.RunFrontends(fctx)` after each Connect, via unified `App.Join`|V22
+B3|2026-06-15|connect "context deadline exceeded": NOT a teetui code bug — connect verified OK vs live teeworlds7:8303 0.7 (0.0s, in compose net). cause = (a) macOS Docker host UDP forward broken → host can't reach localhost:8303/8307 (C15); (b) `-version` mismatch → handshake never completes → 12s deadline. mitigate: run in compose net OR matching `-version`; automate via e2e (T48/T49) + UX (T50)|V23,V24
