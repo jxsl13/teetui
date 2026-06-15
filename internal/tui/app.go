@@ -32,11 +32,12 @@ const (
 // on the main loop. Fields written from twclient callback goroutines (popup,
 // connected) are guarded (atomic / mu) so there is no data race (§V4, §V8).
 type App struct {
-	scr    tcell.Screen
-	state  *State
-	input  *InputController
-	log    *Log
-	server string
+	scr     tcell.Screen
+	state   *State
+	input   *InputController
+	log     *Log
+	server  string
+	version packet.Version // protocol of the current/last Join, for reconnect (§T50)
 
 	cli       atomic.Pointer[client.Client]
 	connected atomic.Bool
@@ -61,12 +62,14 @@ type App struct {
 	help       bool
 	scoreboard bool
 	hookOn     bool
+	drawFrame  int // advances each redraw; drives the connecting spinner (§T33)
 
 	browser        *Browser
 	dialer         func(addr string, ver packet.Version) *client.Client
 	frontendCancel context.CancelFunc // stops RunFrontends of the current session
 
 	warlist        *Warlist
+	keymap         *Keymap
 	playerName     string
 	silentChatCmds bool
 
@@ -104,6 +107,7 @@ func NewApp(server string, state *State, input *InputController, log *Log) (*App
 		histRcon:       NewHistory(64),
 		browser:        NewBrowser(),
 		warlist:        NewWarlist(),
+		keymap:         DefaultKeymap(),
 		silentChatCmds: true, // cl_silent_chat_commands default on (§V14)
 		visual:         true,
 		popup:          greetingPopup(), // startup greeting (§T31)
@@ -113,6 +117,7 @@ func NewApp(server string, state *State, input *InputController, log *Log) (*App
 	if p, err := configDir(); err == nil {
 		_ = a.warlist.Load(filepath.Join(p, "warlist.txt"))
 		_ = a.browser.LoadFavorites(filepath.Join(p, "favorites.txt"))
+		_ = a.keymap.Load(filepath.Join(p, "keymap.txt")) // rebindable keys (§V19/§T42)
 	}
 	return a, nil
 }
@@ -294,6 +299,33 @@ func (a *App) handlePopup(ev *tcell.EventKey) {
 	}
 }
 
+// aimReach is the fixed magnitude (world units) of the keyboard-driven aim
+// vector. Terminals have no mouse-move, so arrow keys snap aim to a cardinal
+// direction at this reach (§T16).
+const aimReach = 256
+
+// weaponForRune maps the number-row keys 1..6 to a weapon selection. The packet
+// weapon consts are 1-indexed (WeaponHammer==1), so key '1' selects the hammer,
+// '6' the ninja (§T16).
+func weaponForRune(r rune) (packet.Weapon, bool) {
+	switch r {
+	case '1':
+		return packet.WeaponHammer, true
+	case '2':
+		return packet.WeaponGun, true
+	case '3':
+		return packet.WeaponShotgun, true
+	case '4':
+		return packet.WeaponGrenade, true
+	case '5':
+		return packet.WeaponLaser, true
+	case '6':
+		return packet.WeaponNinja, true
+	default:
+		return packet.WeaponNone, false
+	}
+}
+
 func (a *App) handleNormal(ev *tcell.EventKey) {
 	if a.help {
 		if ev.Key() == tcell.KeyEscape || ev.Rune() == '?' {
@@ -301,66 +333,90 @@ func (a *App) handleNormal(ev *tcell.EventKey) {
 		}
 		return
 	}
+	// Discrete named commands resolve through the rebindable keymap (§V19/§T42).
+	if act, ok := a.keymap.Lookup(ev.Key(), ev.Rune()); ok {
+		a.doAction(act)
+		return
+	}
+	// Continuous/parametric controls stay direct: log scroll, weapon select
+	// (1..6) and keyboard aim (arrows). These map a group of keys to one
+	// parametric handler rather than a single named action.
 	switch ev.Key() {
-	case tcell.KeyEscape, tcell.KeyCtrlC:
-		a.Stop()
-		return
-	case tcell.KeyTab:
-		a.scoreboard = !a.scoreboard
-		return
 	case tcell.KeyPgUp:
 		a.log.ScrollUp(10)
 		return
 	case tcell.KeyPgDn:
 		a.log.ScrollDown(10)
 		return
-	case tcell.KeyF1:
-		a.enterMode(modeLocalCon)
+	case tcell.KeyUp:
+		a.input.SetAim(0, -aimReach)
 		return
-	case tcell.KeyF2:
+	case tcell.KeyDown:
+		a.input.SetAim(0, aimReach)
+		return
+	case tcell.KeyLeft:
+		a.input.SetAim(-aimReach, 0)
+		return
+	case tcell.KeyRight:
+		a.input.SetAim(aimReach, 0)
+		return
+	}
+	if w, ok := weaponForRune(ev.Rune()); ok {
+		a.input.SetWeapon(w)
+	}
+}
+
+// doAction runs a keymap-resolved NORMAL-mode command. Centralizing the dispatch
+// keeps behavior identical regardless of which key is bound to it (§T42).
+func (a *App) doAction(act KeyAction) {
+	switch act {
+	case actQuit:
+		a.Stop()
+	case actHelp:
+		a.help = !a.help
+	case actVisual:
+		a.visual = !a.visual
+	case actBrowser:
+		a.openBrowser()
+	case actKill:
+		a.do(client.ActKill{})
+	case actEmote:
+		a.do(client.ActEmoticon{Emoticon: packet.EmoticonHearts})
+	case actChat:
+		a.enterMode(modeChat)
+	case actTeamChat:
+		a.enterMode(modeChatTeam)
+	case actLocalConsole:
+		a.enterMode(modeLocalCon)
+	case actRemoteConsole:
 		if c := a.cli.Load(); c != nil && c.RconAuthed() {
 			a.enterMode(modeRcon)
 		} else {
 			a.enterMode(modeRconAuth)
 		}
-		return
-	case tcell.KeyF5:
+	case actScoreboard:
+		a.scoreboard = !a.scoreboard
+	case actVoteYes:
 		a.do(client.ActVote{Approve: true})
-		return
-	case tcell.KeyF6:
+	case actVoteNo:
 		a.do(client.ActVote{Approve: false})
-		return
-	}
-	switch ev.Rune() {
-	case 'q':
-		a.Stop()
-	case '?':
-		a.help = !a.help
-	case 'v':
-		a.visual = !a.visual
-	case 'b', 'B':
-		a.openBrowser()
-	case 'k':
-		a.do(client.ActKill{})
-	case 'e':
-		a.do(client.ActEmoticon{Emoticon: packet.EmoticonHearts})
-	case 't':
-		a.enterMode(modeChat)
-	case 'y':
-		a.enterMode(modeChatTeam)
-	case 'a':
+	case actMoveLeft:
 		a.input.SetDirection(-1)
-	case 'd':
+	case actMoveRight:
 		a.input.SetDirection(1)
-	case 's':
+	case actMoveStop:
 		a.input.SetDirection(0)
-	case ' ':
+	case actJump:
 		a.input.SetJump(true)
-	case 'h':
+	case actHook:
 		a.hookOn = !a.hookOn
 		a.input.SetHook(a.hookOn)
-	case 'H':
+	case actAutoReply:
 		a.autoReplyPing()
+	case actReconnect:
+		a.reconnect()
+	case actFire:
+		a.input.Fire()
 	}
 }
 
@@ -816,6 +872,7 @@ func (a *App) Join(addr string, ver packet.Version) {
 	}
 	a.connected.Store(false)
 	a.server = addr
+	a.version = ver
 	c := a.dialer(addr, ver)
 	a.SetClient(c)
 
@@ -827,7 +884,8 @@ func (a *App) Join(addr string, ver packet.Version) {
 		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 		defer cancel()
 		if err := c.Connect(ctx); err != nil {
-			a.log.Addf(StyleSelf, "connect failed: %v", err)
+			a.log.Addf(StyleSelf, "%s", connectFailMsg(addr, ver, err))
+			a.log.Addf(StyleSystem, "press R to reconnect")
 			fcancel()
 			a.wake()
 			return
@@ -837,6 +895,16 @@ func (a *App) Join(addr string, ver packet.Version) {
 		go c.RunFrontends(fctx) // drive observer (render) + controller (input)
 		a.wake()
 	}()
+}
+
+// reconnect re-runs Join against the current server using the protocol version
+// recorded by the last Join, so the user can retry after a connect failure
+// without re-typing flags (§T50/§V24).
+func (a *App) reconnect() {
+	if a.server == "" {
+		return
+	}
+	a.Join(a.server, a.version)
 }
 
 func (a *App) prompt() string {
@@ -873,6 +941,7 @@ func (a *App) modeLabel() string {
 
 func (a *App) draw() {
 	a.scr.Clear()
+	a.drawFrame++
 	w, h := a.scr.Size()
 
 	if a.mode == modeBrowser {
@@ -897,6 +966,12 @@ func (a *App) draw() {
 		}
 	} else {
 		drawStr(a.scr, lay.Game.X, lay.Game.Y, lay.Game.W, StyleSystem, "[visual off — press v]")
+	}
+
+	// While a join is in flight (no map/snapshot yet) show the indeterminate
+	// connecting / map-download indicator over the top of the game window (§T33).
+	if !a.connected.Load() {
+		drawStr(a.scr, lay.Game.X, lay.Game.Y, lay.Game.W, StyleSystem, connectingLine(a.drawFrame))
 	}
 
 	for i, ln := range a.log.View(lay.Log.H) {
@@ -938,6 +1013,6 @@ func (a *App) drawInput(r Rect) {
 	default:
 		a.scr.HideCursor()
 		drawStr(a.scr, r.X, r.Y, r.W, StyleSystem,
-			" [t]chat [y]team [B]browser [F1]console [F2]rcon [v]visual [k]kill [e]emote [Tab]board [?]help [q]quit ")
+			" [t]chat [B]browser [F1/F2]console [v]visual [k]kill [1-6/f]weapon [R]reconnect [Tab]board [?]help [q]quit ")
 	}
 }

@@ -16,7 +16,10 @@ var helpLines = []string{
 	" Tab       scoreboard",
 	" a/d/s     move left / right / stop",
 	" space jump   h hook   k kill   e emote",
+	" 1-6       select weapon   f fire",
+	" arrows    aim (cardinal)",
 	" H         auto-reply to last ping",
+	" R         reconnect to server",
 	" F5 / F6   vote yes / no",
 	" PgUp/PgDn / wheel   scroll log",
 	"",
@@ -26,6 +29,7 @@ var helpLines = []string{
 	" input: Ctrl-U/K/W kill   Up/Down history",
 	"        Ctrl-R search     Tab complete",
 	"",
+	" keys rebindable: ~/.config/teetui/keymap.txt",
 	" press ? or Esc to close ",
 }
 

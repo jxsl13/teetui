@@ -179,7 +179,7 @@ T12|x|input textbox: cursor, edit, submit; CHAT→Do(ActChat{Team}) + readline +
 T13|x|per-mode input history + persist load/save to disk (~/.config/teetui/history)|I.config,V10,V16
 T14|x|reverse-i-search overlay (Ctrl-R) per mode (← RenderInputSearch/_UpdateInputSearch)|I.modes
 T15|~|tab completion: player names (chat, from Roster) + console commands, cycling on repeat Tab (← CompleteNames/CompleteCommands). grey preview TODO|I.windows
-T16|~|tee control: NORMAL-mode keys → packet.PlayerInput → Do(ActInput) via Controller (have: move/jump/hook; TODO: aim/fire/weapon, key-release handling)|V12,I.twclient
+T16|x|tee control: NORMAL-mode keys → packet.PlayerInput → Do(ActInput) via Controller (have: move/jump/hook; TODO: aim/fire/weapon, key-release handling)|V12,I.twclient
 T17|x|scoreboard: cols score\|name\|clan, sort score-desc, local highlight, toggle — via twclient v0.2.0 `TickState.Roster` (PlayerState). 0.6 self-name weak (twclient T6)|I.windows,V6
 T18|x|server browser: async master.FetchServerList, list render, `/` search, ↑↓ select, Enter→rejoin (close+dialer+Connect), password 🔒 flag (← menus.cpp OpenServerList)|I.windows,V13
 T19|x|popups: greeting/message/DISCONNECTED + drawPopup, Enter/Esc close, mutex-guarded (← terminalui.h m_Popup). WARNING kind TODO|I.windows,V11,V17
@@ -196,7 +196,7 @@ T29|x|write README.md: usage + full attributions/credits/references (chillerbot-
 T30|x|log scrollback: PageUp/PageDown + mouse-wheel scroll, follow-tail (← transcript scroll log)|I.windows
 T31|x|startup greeting popup w/ keybind hints, Enter close (← transcript boot menu)|I.windows,V11,V17
 T32|x|browser tabs Internet/LAN/Favorites/DDNet/KoG/Vanilla + ←/→ switch + `/` search + Enter join + `f` favorite|I.windows,V13
-T33|~|map download progress bar on join (← transcript download bar)|I.windows
+T33|x|map download progress bar on join (← transcript download bar)|I.windows
 T34|x|in-game HUD: live local-tee coords (tile x,y) readout (← transcript coords change on move)|I.render
 T35|x|visual-mode toggle key `v`: show/hide game render, resize-safe via Sync (← transcript visual mode)|I.modes,V11,V18
 T36|x|action keys: self-kill `k`→ActKill, emote `e`→ActEmoticon, vote F5/F6→ActVote (← transcript K self-kill)|V12,I.twclient
@@ -204,8 +204,8 @@ T37|x|spectate/pause: console `spec/spectate/pause [name]` → name→id via Ros
 T38|x|input readline edit: Ctrl-U/Ctrl-K/Ctrl-W kill + cursor move (Left/Right/Home/End) (← transcript Ctrl-U/K); tab name-complete TODO|I.windows
 T39|~|local console F1: command interpreter (help/echo/say/quit/version) + history DONE; twclient config cmds + tab-complete + help-text line TODO (← transcript F1)|I.modes,V9
 T40|~|chillerbot AFK: `H` reply-to-ping DONE (T23); auto tapped-out message + `cl_tapped_out_message` toggle TODO (off by default — teetui is interactive, not AFK)|I.config
-T41|.|reconcile keymap to §I key-binding table (?/B/F1/F2/T/Z/H/V/K/Tab//) — supersedes foundation `t`/`y`/`h`/`q`|I.modes,V17
-T42|~|rebindable keymap: config file load/save, default = §I table, runtime bind (exceed reference)|V19,C12
+T41|x|reconcile keymap to §I key-binding table (?/B/F1/F2/T/Z/H/V/K/Tab//) — supersedes foundation `t`/`y`/`h`/`q`|I.modes,V17
+T42|x|rebindable keymap: config file load/save, default = §I table, runtime bind (exceed reference)|V19,C12
 T43|~|render-quality: Start/Finish/Checkpoint colored via MapView booleans DONE (Tele/Boost via class); sub-cell → T46; smooth camera TODO|C11,V20,I.render
 T44|.|parity-checklist verify: each §T30-41 feature ≥ chillerbot; doc gaps|C10,V20
 T45|x|browser LAN + Favorites: favorites persist ~/.config/teetui/favorites.txt + `f` toggle + Favorites tab; LAN = connless probe of localhost ports (subnet broadcast would need twclient support)|I.windows,V13
@@ -213,7 +213,7 @@ T46|.|render sub-cell detail: half-block ▀▄ (2 tiles/cell vertical) | braill
 T47|x|render checkpoint tile color (orange, glyph 'C') via twclient v0.2.2 `MapView.Checkpoint`; precedence finish>start>checkpoint (← chillerbot colorCheckpoint)|C11,I.render
 T48|x|e2e harness `e2e/` mirroring twclient: docker-compose (ddnet 0.6+0.7-sixup, teeworlds7 vanilla 0.7, Dockerfiles from source), gated `-tags e2e`+`TW_E2E`, service-name addrs; test connects each + RunFrontends + asserts snapshot ticks + roster|C14,V22,V23
 T49|x|CI/CD e2e job: build server images (matrix), run `go test -tags e2e ./e2e/...` IN-NETWORK + race + coverage profile + per-pkg %; mirror twclient `.github/workflows/ci.yml`|C14,V23
-T50|~|connect UX: actionable timeout msg (addr/version/network) in log + reconnect/retry key; ?auto-detect protocol via connless `QueryServerInfo` probe before Connect|V24,I.windows
+T50|x|connect UX: actionable timeout msg (addr/version/network) in log + reconnect/retry key; ?auto-detect protocol via connless `QueryServerInfo` probe before Connect|V24,I.windows
 T51|.|browser LAN tab → REAL subnet scan via twclient v0.2.3 `master.ScanLAN` (broadcast 0.6+0.7, dedupe), replacing localhost-port probe (upgrades T45). map `[]LANServer`→serverRow into LAN source|I.windows,V13
 
 ## §B — bugs

@@ -63,3 +63,27 @@ func (c *InputController) SetHook(on bool) {
 		}
 	})
 }
+
+// SetWeapon selects the wanted weapon (packet.WeaponHammer..WeaponNinja). The
+// packet weapon consts are 1-indexed (0 = no change), so callers pass the typed
+// packet.Weapon value directly (§V12, §T16).
+func (c *InputController) SetWeapon(w packet.Weapon) {
+	c.Edit(func(in *packet.PlayerInput) { _ = in.SetWantedWeapon(int(w)) })
+}
+
+// Fire increments the fire counter, the way the engine registers a trigger pull
+// (DDNet/TW count a press while the value differs from the server's last seen
+// value). A terminal cannot report key release, so unlike a real mouse button we
+// cannot hold fire down across ticks — each key press is one discrete shot, and
+// movement/jump/hook keys (set above) are likewise sticky toggles rather than
+// held-until-release buttons (§T16, terminal key-release limitation).
+func (c *InputController) Fire() {
+	c.Edit(func(in *packet.PlayerInput) { in.Fire++ })
+}
+
+// SetAim sets the aim target vector relative to the tee. Terminals have no
+// mouse-move, so aim is driven from discrete keys (e.g. arrows) that snap the
+// target to a fixed cardinal vector rather than tracking a cursor (§T16).
+func (c *InputController) SetAim(x, y int) {
+	c.Edit(func(in *packet.PlayerInput) { in.SetTarget(x, y) })
+}
