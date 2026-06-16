@@ -12,9 +12,9 @@ func tickInput(c *InputController) packet.PlayerInput {
 	return c.OnTick(nil, client.TickState{})[0].(client.ActInput).Input
 }
 
-// §T118/§V80/§B13: movement direction is STICKY (held until stop/opposite) so it
-// combines with a separate jump press; jump stays momentary.
-func TestDirectionSticky(t *testing.T) {
+// §T120/§V81/§B15: movement direction DECAYS after the key is released (no
+// key-repeat refresh) — it is never stuck; refresh within the window keeps it.
+func TestDirectionDecay(t *testing.T) {
 	c := NewInputController()
 	c.SetHold(40 * time.Millisecond)
 
@@ -22,12 +22,18 @@ func TestDirectionSticky(t *testing.T) {
 	if tickInput(c).Direction != packet.DirRight {
 		t.Fatal("press right did not move right")
 	}
-	// Stays right without any refresh (sticky) — does NOT decay.
-	time.Sleep(60 * time.Millisecond)
+	// Refresh within the window keeps it (key-repeat while held).
+	time.Sleep(20 * time.Millisecond)
+	c.PressRight()
 	if tickInput(c).Direction != packet.DirRight {
-		t.Error("sticky direction should persist without refresh")
+		t.Error("refresh within window should keep moving")
 	}
-	// Opposite flips it; stop clears it.
+	// No refresh past the window → neutral (key released → repeats stopped). Not stuck.
+	time.Sleep(60 * time.Millisecond)
+	if d := tickInput(c).Direction; d != packet.DirNone {
+		t.Errorf("direction stuck past hold window: dir=%v", d)
+	}
+	// Opposite flips; stop clears.
 	c.PressLeft()
 	if tickInput(c).Direction != packet.DirLeft {
 		t.Error("opposite press should flip direction")

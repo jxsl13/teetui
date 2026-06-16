@@ -32,7 +32,7 @@ func NewConfig() *Config {
 		PlayerClan:     "",
 		ConnectTimeout: 30,     // seconds (= DefaultConnectTimeout)
 		MoveKeys:       "wasd", // WASD move, arrows aim (§T104)
-		InputHoldMs:    350,    // movement/jump hold window (§T110)
+		InputHoldMs:    500,    // movement/jump hold window (§T110/§T120, bridges a jump tap)
 	}
 }
 

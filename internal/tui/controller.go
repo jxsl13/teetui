@@ -8,15 +8,18 @@ import (
 	"github.com/jxsl13/twclient/packet"
 )
 
-// defaultJumpHold is the momentary-jump pulse window (§C34/§V80). A jump press
-// raises Jump=1 until now+hold, then it clears — so a tap is one jump and there
-// is no infinite jump (B10). Override via cl_input_hold_ms.
-const defaultJumpHold = 350 * time.Millisecond
+// defaultInputHold is the movement+jump hold window (§C34/§V81). A press marks the
+// key held until now+hold; terminal key-repeat refreshes it while physically down,
+// and once it lapses (key released → repeats stop) the field returns to neutral —
+// so the pressed key is never STUCK (B15). The window is sized to bridge a brief
+// jump tap mid-hold, keeping hold-direction + tap-jump combinable (B13). Override
+// via cl_input_hold_ms.
+const defaultInputHold = 500 * time.Millisecond
 
 // InputController is the single action-emitting consumer, adapting DDNet's
 // per-tick held-input model to the terminal's no-key-release limitation (§C34):
-//   - movement direction is STICKY (press left/right → move until stop/opposite),
-//     so it stays combinable with a separate jump/fire/hook keypress (§V80/B13);
+//   - movement direction follows the actual key via DECAY — held while key-repeat
+//     refreshes it, → 0 after release; never stuck (§V81/B15);
 //   - jump is a MOMENTARY pulse (one jump per press, no latch, B10);
 //   - fire is an edge counter; hook is an explicit toggle;
 //   - aim is a sticky cardinal target, never the zero vector (§V78/B11).
@@ -26,7 +29,8 @@ const defaultJumpHold = 350 * time.Millisecond
 type InputController struct {
 	mu        sync.Mutex
 	hold      time.Duration
-	moveDir   int       // -1 left, 0 none, 1 right (STICKY)
+	moveDir   int       // -1 left, 0 none, 1 right
+	moveUntil time.Time // direction decays to 0 after this (§V81)
 	jumpUntil time.Time // jump pressed (1) until this, then 0 (momentary)
 	hook      bool      // toggle
 	fire      int32     // edge counter
@@ -38,10 +42,10 @@ type InputController struct {
 // NewInputController returns a controller with neutral movement and a stable
 // default aim (facing right) so the tee never aims at the zero vector (§V78).
 func NewInputController() *InputController {
-	return &InputController{hold: defaultJumpHold, aimX: aimReach, aimY: 0}
+	return &InputController{hold: defaultInputHold, aimX: aimReach, aimY: 0}
 }
 
-// SetHold sets the jump pulse window (cl_input_hold_ms, §C34); <=0 keeps default.
+// SetHold sets the movement/jump hold window (cl_input_hold_ms, §C34); <=0 keeps default.
 func (c *InputController) SetHold(d time.Duration) {
 	if d <= 0 {
 		return
@@ -59,9 +63,14 @@ func (c *InputController) Mode() client.TickMode { return client.TickModeFrame }
 func (c *InputController) OnTick(_ *client.Client, _ client.TickState) []client.Action {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	now := time.Now()
 	var in packet.PlayerInput
-	_ = in.SetDirection(c.moveDir) // sticky (§V80)
-	if time.Now().Before(c.jumpUntil) {
+	dir := 0
+	if now.Before(c.moveUntil) { // direction decays after release (§V81)
+		dir = c.moveDir
+	}
+	_ = in.SetDirection(dir)
+	if now.Before(c.jumpUntil) {
 		_ = in.SetJump(1) // momentary pulse (§V80)
 	}
 	if c.hook {
@@ -79,21 +88,24 @@ func (c *InputController) OnTick(_ *client.Client, _ client.TickState) []client.
 	return []client.Action{client.ActInput{Input: in}}
 }
 
-// PressLeft / PressRight set sticky movement; it holds until PressStop or the
-// opposite direction — combinable with jump/fire (§V80).
+// PressLeft / PressRight set (or refresh) the held direction; key-repeat keeps it
+// alive while the key is down, and it decays after release (§V81). Combinable with
+// a jump tap (the window bridges the tap, B13).
 func (c *InputController) PressLeft()  { c.setDir(-1) }
 func (c *InputController) PressRight() { c.setDir(1) }
 
 func (c *InputController) setDir(dir int) {
 	c.mu.Lock()
 	c.moveDir = dir
+	c.moveUntil = time.Now().Add(c.hold)
 	c.mu.Unlock()
 }
 
-// PressStop clears sticky movement.
+// PressStop clears held movement immediately.
 func (c *InputController) PressStop() {
 	c.mu.Lock()
 	c.moveDir = 0
+	c.moveUntil = time.Time{}
 	c.mu.Unlock()
 }
 
