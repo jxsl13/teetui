@@ -11,7 +11,8 @@ import (
 
 // §T86/§V43: import isolation — core (internal/tui) must not import any
 // features/* package, and no features/* package may import internal/tui. The
-// only allowed coupling is via the public feature/lang APIs. Scans non-test Go
+// only allowed coupling is via the public feature API + shared internal libs
+// (e.g. internal/lang). Scans non-test Go
 // files for forbidden import paths.
 func TestImportIsolation(t *testing.T) {
 	const (

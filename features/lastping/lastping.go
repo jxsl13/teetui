@@ -9,7 +9,7 @@ import (
 	"sync"
 
 	"github.com/jxsl13/teetui/feature"
-	"github.com/jxsl13/teetui/lang"
+	"github.com/jxsl13/teetui/internal/lang"
 )
 
 const maxPings = 16

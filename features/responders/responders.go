@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/jxsl13/teetui/feature"
-	"github.com/jxsl13/teetui/lang"
+	"github.com/jxsl13/teetui/internal/lang"
 )
 
 // interval rate-limits each auto-reply so a ping burst can't flood (§T40).

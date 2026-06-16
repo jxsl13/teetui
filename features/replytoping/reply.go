@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jxsl13/teetui/lang"
+	"github.com/jxsl13/teetui/internal/lang"
 )
 
 // smalltalkReply answers small-talk pings in the sender's language (← chillerbot
