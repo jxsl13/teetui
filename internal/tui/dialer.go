@@ -64,6 +64,23 @@ func (a *App) DefaultDialer(name, clan, skin string) func(addr string, ver packe
 				Killer: e.Killer, Victim: e.Victim, Weapon: int(e.Weapon),
 			})
 		})
+		// Player/team events (§T105/§C30): unified 0.6/0.7, dispatched to features
+		// (e.g. features/serverlog) via the generic client.On registration.
+		client.On(c, func(_ *client.Client, e packet.EventPlayerJoin) {
+			feature.FirePlayerJoin(a.api(), feature.PlayerJoinEvent{
+				ClientID: e.ClientID, Name: e.Name, Clan: e.Clan, Team: e.Team,
+			})
+		})
+		client.On(c, func(_ *client.Client, e packet.EventPlayerLeave) {
+			feature.FirePlayerLeave(a.api(), feature.PlayerLeaveEvent{
+				ClientID: e.ClientID, Reason: e.Reason,
+			})
+		})
+		client.On(c, func(_ *client.Client, e packet.EventTeamSet) {
+			feature.FireTeamChange(a.api(), feature.TeamChangeEvent{
+				ClientID: e.ClientID, Team: e.Team, Silent: e.Silent,
+			})
+		})
 		c.OnRconLine(func(_ *client.Client, e packet.EventRconLine) {
 			a.log.Addf(StyleSystem, "rcon> %s", e.Line)
 		})

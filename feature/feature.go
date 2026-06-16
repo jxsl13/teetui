@@ -41,6 +41,28 @@ type KillEvent struct {
 	Weapon int
 }
 
+// PlayerJoinEvent fires when a player appears (§C30). Unified 0.6/0.7.
+type PlayerJoinEvent struct {
+	ClientID int
+	Name     string
+	Clan     string
+	Team     int
+}
+
+// PlayerLeaveEvent fires when a player drops (§C30); Reason may be empty on 0.6.
+type PlayerLeaveEvent struct {
+	ClientID int
+	Reason   string
+}
+
+// TeamChangeEvent fires when a player's team changes (§C30). Team ids: spectators
+// -1, red/flock(game) 0, blue 1. Silent suppresses the message (server hint).
+type TeamChangeEvent struct {
+	ClientID int
+	Team     int
+	Silent   bool
+}
+
 // Key is a key press handed to OnKey. Character keys set Rune; named keys (F1,
 // Enter, Tab, …) set Name with Rune==0.
 type Key struct {
@@ -178,6 +200,11 @@ type TickHandler interface{ OnTick(API, client.TickState) }
 type KeyHandler interface {
 	OnKey(API, Key) (handled bool)
 }
+
+// Player/team event handlers (§C30/§V68) — optional, forward-compatible (V60).
+type PlayerJoinHandler interface{ OnPlayerJoin(API, PlayerJoinEvent) }
+type PlayerLeaveHandler interface{ OnPlayerLeave(API, PlayerLeaveEvent) }
+type TeamChangeHandler interface{ OnTeamChange(API, TeamChangeEvent) }
 
 // Cross-feature services are passed as `any` through Provide/Lookup (§V53): the
 // providing feature Provides its concrete value under a name, and each consumer

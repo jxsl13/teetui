@@ -245,3 +245,27 @@ func FireKey(h API, k Key) (handled bool) {
 	}
 	return false
 }
+
+func FirePlayerJoin(h API, ev PlayerJoinEvent) {
+	for _, e := range snapshot() {
+		if hh, ok := e.f.(PlayerJoinHandler); ok {
+			safeCall(e, h, "OnPlayerJoin", func() bool { hh.OnPlayerJoin(h, ev); return false })
+		}
+	}
+}
+
+func FirePlayerLeave(h API, ev PlayerLeaveEvent) {
+	for _, e := range snapshot() {
+		if hh, ok := e.f.(PlayerLeaveHandler); ok {
+			safeCall(e, h, "OnPlayerLeave", func() bool { hh.OnPlayerLeave(h, ev); return false })
+		}
+	}
+}
+
+func FireTeamChange(h API, ev TeamChangeEvent) {
+	for _, e := range snapshot() {
+		if hh, ok := e.f.(TeamChangeHandler); ok {
+			safeCall(e, h, "OnTeamChange", func() bool { hh.OnTeamChange(h, ev); return false })
+		}
+	}
+}

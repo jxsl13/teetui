@@ -153,3 +153,29 @@ func TestFeatureIsolation(t *testing.T) {
 		t.Errorf("enabled features = %d want 1 (good)", got)
 	}
 }
+
+// §T105/§V68: player/team event handlers are optional + forward-compatible — a
+// feature implementing only PlayerJoinHandler gets joins and nothing else.
+type joinOnly struct{ joins, leaves, teams int }
+
+func (*joinOnly) Name() string                        { return "joinonly" }
+func (f *joinOnly) OnPlayerJoin(API, PlayerJoinEvent) { f.joins++ }
+
+func TestPlayerEventDispatch(t *testing.T) {
+	Reset()
+	defer Reset()
+	f := &joinOnly{}
+	Register(f)
+	h := newFakeHost()
+
+	FirePlayerJoin(h, PlayerJoinEvent{ClientID: 1, Name: "bob"})
+	FirePlayerLeave(h, PlayerLeaveEvent{ClientID: 1})
+	FireTeamChange(h, TeamChangeEvent{ClientID: 1, Team: 0})
+
+	if f.joins != 1 {
+		t.Errorf("OnPlayerJoin calls = %d want 1", f.joins)
+	}
+	if f.leaves != 0 || f.teams != 0 {
+		t.Errorf("feature without leave/team handlers was called: %d/%d", f.leaves, f.teams)
+	}
+}
