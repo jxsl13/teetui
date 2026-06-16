@@ -270,6 +270,26 @@ func (b *Browser) SaveFavorites(path string) error {
 }
 
 // DrawBrowser renders the full-screen browser overlay (§T18/§T32).
+// browserCols returns the flexible name/gametype/map column widths for a browser
+// of width w (§T99/§V58). The fixed parts of a row are the 1-col fav/pw mark, the
+// 5-col "NN/NN" player count and the 3-col version, plus 4 single-space column
+// separators (14 cols); the rest of w-1 (drawStr clips at w-1) is split name 45%,
+// gametype 25%, map 30%, so the table fills a wide terminal and shrinks on a
+// narrow one without overflowing.
+func browserCols(w int) (nameW, gtW, mapW int) {
+	budget := w - 1 - 14
+	if budget < 3 {
+		if budget < 0 {
+			budget = 0
+		}
+		return budget, 0, 0
+	}
+	nameW = budget * 45 / 100
+	gtW = budget * 25 / 100
+	mapW = budget - nameW - gtW
+	return nameW, gtW, mapW
+}
+
 func DrawBrowser(s tcell.Screen, w, h int, b *Browser) {
 	b.mu.Lock()
 	tab, sel, loading, errStr, search, bsearch := b.tab, b.sel, b.loading, b.err, string(b.search), b.bsearch
@@ -312,8 +332,9 @@ func DrawBrowser(s tcell.Screen, w, h int, b *Browser) {
 		drawStr(s, 1, statusY, w-1, StyleChat, fmt.Sprintf("%-40s  %d servers   [Enter]join [/]search [f]fav [←/→]tab [B/Esc]close", cur, len(view)))
 	}
 
-	// Header + rows.
-	header := fmt.Sprintf(" %-30s %-10s %-14s %5s  %s", "name", "gametype", "map", "plrs", "ver")
+	// Header + rows — name/gametype/map columns flex with the width (§T99/§V58).
+	nameW, gtW, mapW := browserCols(w)
+	header := fmt.Sprintf(" %s %s %s %5s  %s", padCol("name", nameW), padCol("gametype", gtW), padCol("map", mapW), "plrs", "ver")
 	drawStr(s, 1, 3, w-1, StyleStatus, header)
 	top := 0
 	if sel >= h-5 {
@@ -333,8 +354,8 @@ func DrawBrowser(s tcell.Screen, w, h int, b *Browser) {
 		if r.Passworded {
 			mark = "#"
 		}
-		line := fmt.Sprintf("%s%-30s %-10s %-14s %2d/%-2d  %s",
-			mark, padCol(r.Name, 30), padCol(r.GameType, 10), padCol(r.MapName, 14), r.Players, r.MaxPlayers, ver)
+		line := fmt.Sprintf("%s%s %s %s %2d/%-2d  %s",
+			mark, padCol(r.Name, nameW), padCol(r.GameType, gtW), padCol(r.MapName, mapW), r.Players, r.MaxPlayers, ver)
 		st := StyleChat
 		if i == sel {
 			st = StyleStatus

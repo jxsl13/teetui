@@ -145,3 +145,21 @@ func TestLANServerRow(t *testing.T) {
 		t.Fatalf("lanServerRow mismatch:\n got %+v\nwant %+v", got, want)
 	}
 }
+
+// §T99/§V58: browser columns flex with width — name grows on a wide terminal,
+// the row never overflows the width at any size.
+func TestBrowserColsFlex(t *testing.T) {
+	wideN, _, _ := browserCols(160)
+	narrowN, _, _ := browserCols(60)
+	if wideN <= narrowN {
+		t.Errorf("name col should grow with width: wide=%d narrow=%d", wideN, narrowN)
+	}
+	for _, w := range []int{40, 60, 100, 160, 240} {
+		n, g, m := browserCols(w)
+		// row = mark(1) + name + " " + gt + " " + map + " " + plrs(5) + "  " + ver(3)
+		used := 1 + n + 1 + g + 1 + m + 1 + 5 + 2 + 3
+		if used > w {
+			t.Errorf("browser row overflows at w=%d: used=%d (n=%d g=%d m=%d)", w, used, n, g, m)
+		}
+	}
+}

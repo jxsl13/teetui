@@ -24,16 +24,45 @@ func TestRosterRowsSort(t *testing.T) {
 	}
 }
 
-// §V6: scoreboard columns are width-aligned (truncate + pad).
+// §V6/§V58: scoreboard columns are width-aligned (truncate + pad) at the given
+// column widths.
 func TestScoreboardLineColumns(t *testing.T) {
-	line := scoreboardLine(client.PlayerState{Score: 42, Name: "verylongplayername_overflow", Clan: "clan"})
+	const nameW, clanW = 16, 12
+	line := scoreboardLine(client.PlayerState{Score: 42, Name: "verylongplayername_overflow", Clan: "clan"}, nameW, clanW)
 	if !strings.Contains(line, "42") {
 		t.Errorf("missing score: %q", line)
 	}
-	// name column is truncated to nameColW display cells.
+	// name column is truncated to nameW display cells.
 	nameField := line[strings.Index(line, "42")+len("42")+1:]
-	if len([]rune(strings.TrimRight(nameField[:nameColW], " "))) > nameColW {
+	if len([]rune(strings.TrimRight(nameField[:nameW], " "))) > nameW {
 		t.Errorf("name not truncated: %q", line)
+	}
+}
+
+// §T99/§V58: name/clan columns flex with board width — clan drops when narrow,
+// name grows when wide; column sum never exceeds the width.
+func TestScoreboardColsFlex(t *testing.T) {
+	wideN, wideC := scoreboardCols(120)
+	narrowN, narrowC := scoreboardCols(28)
+	if narrowC != 0 {
+		t.Errorf("narrow board should drop clan, got clanW=%d", narrowC)
+	}
+	if wideC == 0 {
+		t.Errorf("wide board should show clan, got clanW=0")
+	}
+	if wideN <= narrowN {
+		t.Errorf("name should grow on wide board: wide=%d narrow=%d", wideN, narrowN)
+	}
+	for _, w := range []int{12, 20, 40, 80, 200} {
+		n, c := scoreboardCols(w)
+		sep := 0
+		if c > 0 {
+			sep = 1
+		}
+		used := 1 + scoreColW + 1 + n + sep + c // leading space + score + sep + name + sep + clan
+		if used > w {
+			t.Errorf("scoreboard cols overflow at w=%d: used=%d (n=%d c=%d)", w, used, n, c)
+		}
 	}
 }
 

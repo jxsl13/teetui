@@ -8,11 +8,32 @@ import (
 	"github.com/jxsl13/twclient/client"
 )
 
-const (
-	scoreColW = 7
-	nameColW  = 16
-	clanColW  = 12
-)
+// scoreColW is the fixed score column; name and clan columns FLEX with the rect
+// width (§T99/§V58) — clan shrinks then drops on a narrow board, name grows on a
+// wide one, so the table never wastes a wide terminal nor over-truncates a small.
+const scoreColW = 7
+
+// scoreboardCols returns the name/clan column widths for a board of the given
+// width. clanW == 0 means the clan column is dropped (too narrow to be useful).
+// Layout per row: " " + score(scoreColW) + " " + name + [" " + clan].
+func scoreboardCols(width int) (nameW, clanW int) {
+	budget := width - scoreColW - 2 // leading space + name/score separator
+	if budget < 1 {
+		return 0, 0
+	}
+	clanW = budget / 3
+	if clanW > 16 {
+		clanW = 16
+	}
+	if clanW < 8 { // too small to be worth a column → drop clan, give name all
+		return budget, 0
+	}
+	nameW = budget - clanW - 1 // separator between name and clan
+	if nameW < 1 {
+		return budget, 0
+	}
+	return nameW, clanW
+}
 
 // rosterRows returns the roster sorted for display: highest score first, ties
 // broken by client id for stable ordering (§T17). Pure, so it is unit-tested.
@@ -30,9 +51,13 @@ func rosterRows(roster map[int]client.PlayerState) []client.PlayerState {
 	return rows
 }
 
-// scoreboardLine formats one roster row into aligned columns.
-func scoreboardLine(p client.PlayerState) string {
-	return fmt.Sprintf("%*d %s %s", scoreColW, p.Score, padCol(playerLabel(p), nameColW), padCol(p.Clan, clanColW))
+// scoreboardLine formats one roster row into columns of the given widths; the
+// clan column is omitted when clanW <= 0 (§T99/§V58).
+func scoreboardLine(p client.PlayerState, nameW, clanW int) string {
+	if clanW <= 0 {
+		return fmt.Sprintf("%*d %s", scoreColW, p.Score, padCol(playerLabel(p), nameW))
+	}
+	return fmt.Sprintf("%*d %s %s", scoreColW, p.Score, padCol(playerLabel(p), nameW), padCol(p.Clan, clanW))
 }
 
 // playerLabel is the player's name, falling back to "#<id>" when the registry
@@ -57,7 +82,13 @@ func DrawScoreboard(s tcell.Screen, r Rect, st client.TickState, styler nameStyl
 	if r.W < 12 || r.H < 2 {
 		return
 	}
-	header := fmt.Sprintf("%*s %s %s", scoreColW, "score", padCol("name", nameColW), padCol("clan", clanColW))
+	nameW, clanW := scoreboardCols(r.W)
+	var header string
+	if clanW <= 0 {
+		header = fmt.Sprintf("%*s %s", scoreColW, "score", padCol("name", nameW))
+	} else {
+		header = fmt.Sprintf("%*s %s %s", scoreColW, "score", padCol("name", nameW), padCol("clan", clanW))
+	}
 	drawStr(s, r.X, r.Y, r.W, StyleStatus, padCol(" "+header, r.W))
 
 	row := 1
@@ -66,7 +97,7 @@ func DrawScoreboard(s tcell.Screen, r Rect, st client.TickState, styler nameStyl
 			break
 		}
 		style := scoreRowStyle(p, st.LocalID, styler)
-		drawStr(s, r.X, r.Y+row, r.W, style, " "+scoreboardLine(p))
+		drawStr(s, r.X, r.Y+row, r.W, style, " "+scoreboardLine(p, nameW, clanW))
 		row++
 	}
 }
