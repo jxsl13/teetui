@@ -4,7 +4,7 @@ go 1.26.4
 
 require (
 	github.com/gdamore/tcell/v2 v2.13.10
-	github.com/jxsl13/twclient v0.2.4
+	github.com/jxsl13/twclient v0.2.6
 	github.com/mattn/go-runewidth v0.0.24
 	golang.org/x/text v0.35.0
 )
