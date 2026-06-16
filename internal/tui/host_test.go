@@ -13,7 +13,7 @@ type tfeat struct {
 }
 
 func (*tfeat) Name() string { return "tfeat" }
-func (f *tfeat) Init(h feature.Host) error {
+func (f *tfeat) Init(h feature.API) error {
 	h.DefineConfig("cl_tfeat", "7", "demo cvar")
 	h.DefineAction("tfeat", "g", "demo action", func() { f.acted = true })
 	h.AddStatusField(func() string { return "TF-OK" })
@@ -40,11 +40,11 @@ func TestHostProvisioning(t *testing.T) {
 	app, sim := newTestApp(t) // NewAppWithScreen provisions registered features
 
 	// Feature cvar readable via Host.Config and console get/set.
-	if v, ok := app.host().Config("cl_tfeat"); !ok || v != "7" {
+	if v, ok := app.api().Config("cl_tfeat"); !ok || v != "7" {
 		t.Errorf("Config(cl_tfeat) = %q,%v want 7", v, ok)
 	}
 	app.runLocal("cl_tfeat 9")
-	if v, _ := app.host().Config("cl_tfeat"); v != "9" {
+	if v, _ := app.api().Config("cl_tfeat"); v != "9" {
 		t.Errorf("after set, cl_tfeat = %q want 9", v)
 	}
 
@@ -73,7 +73,7 @@ func TestHostProvisioning(t *testing.T) {
 	}
 
 	// Service registry.
-	if v, ok := app.host().Lookup("tsvc"); !ok || v.(int) != 42 {
+	if v, ok := app.api().Lookup("tsvc"); !ok || v.(int) != 42 {
 		t.Errorf("Lookup(tsvc) = %v,%v want 42", v, ok)
 	}
 

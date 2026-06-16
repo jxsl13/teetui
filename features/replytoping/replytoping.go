@@ -19,13 +19,13 @@ type replyFeature struct{}
 
 func (*replyFeature) Name() string { return "replytoping" }
 
-func (f *replyFeature) Init(h feature.Host) error {
+func (f *replyFeature) Init(h feature.API) error {
 	h.DefineAction("reply_to_ping", "H", "reply to the last chat ping", func() { f.reply(h) })
 	return nil
 }
 
 // reply answers the next pending ping (newest first; repeated H walks older).
-func (f *replyFeature) reply(h feature.Host) {
+func (f *replyFeature) reply(h feature.API) {
 	store, _ := lookupPings(h)
 	if store == nil {
 		h.Log("no recent ping to reply to")
@@ -48,7 +48,7 @@ func (f *replyFeature) reply(h feature.Host) {
 }
 
 // env gathers the read-only state for a query answer from the Host.
-func (f *replyFeature) env(h feature.Host) queryEnv {
+func (f *replyFeature) env(h feature.API) queryEnv {
 	env := queryEnv{selfClan: h.PlayerClan(), goos: runtime.GOOS}
 	if wl, ok := h.Lookup("warlist"); ok {
 		if w, ok := wl.(warlistService); ok {
@@ -75,7 +75,7 @@ type pingService interface {
 }
 
 // lookupPings fetches the pings service (lastping), if present.
-func lookupPings(h feature.Host) (pingService, bool) {
+func lookupPings(h feature.API) (pingService, bool) {
 	if v, ok := h.Lookup("pings"); ok {
 		s, ok := v.(pingService)
 		return s, ok

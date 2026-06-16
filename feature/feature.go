@@ -1,7 +1,7 @@
 // Package feature is teetui's public module SDK (§C21/§I.feature). Every
 // chillerbot-style feature is a self-registering module — like Caddy v2's
 // caddy.RegisterModule or the image stdlib's image.RegisterFormat — implemented
-// purely against the Host capability surface, never against teetui internals.
+// purely against the API capability surface, never against teetui internals.
 //
 // A feature package registers itself in init() and is activated by being blank-
 // imported from main.go. A Feature needs only a Name; setup and every event are
@@ -11,11 +11,11 @@
 //	package myfeat
 //	type feat struct{}
 //	func (feat) Name() string                 { return "myfeat" }
-//	func (f feat) Init(h feature.Host) error   { /* declare cvars/actions */ return nil } // optional
-//	func (feat) OnChat(h feature.Host, e feature.ChatEvent) bool { … }                    // optional
+//	func (f feat) Init(h feature.API) error   { /* declare cvars/actions */ return nil } // optional
+//	func (feat) OnChat(h feature.API, e feature.ChatEvent) bool { … }                    // optional
 //	func init() { feature.Register(feat{}) }
 //
-// The Host action surface is exactly teetui's safe twclient capability set — no
+// The API action surface is exactly teetui's safe twclient capability set — no
 // raw packet/network primitive — so a feature cannot be turned into a flood/DoS
 // tool (§V39/§V47). A panic in any feature is recovered and the feature disabled,
 // never crashing the client (§V40/§V47).
@@ -51,40 +51,84 @@ type Key struct {
 // Style is the cell style a feature contributes (e.g. warlist name coloring).
 type Style = tcell.Style
 
-// Host is the capability surface a feature may use — the sufficient, safe API
-// (§I.feature/§V47). Actions are limited to teetui's twclient public surface.
-type Host interface {
-	// actions
+// The API is split into small, named capability sub-interfaces (interface
+// segregation, §C27/§V63): a handler or consumer may depend on just the slice it
+// needs (e.g. take a ChatSender instead of the whole API). The full API embeds
+// them all. Every action is limited to teetui's safe twclient surface (§V47).
+
+// ChatSender sends a chat line (team chat when team is true).
+type ChatSender interface {
 	SendChat(msg string, team bool)
+}
+
+// ActionDoer performs a twclient action and async rcon auth.
+type ActionDoer interface {
 	Do(action client.Action) error
 	RconLogin(password string) // async rcon auth (off-loop); logs the outcome
+}
+
+// Logger writes a line to the teetui log.
+type Logger interface {
 	Log(msg string)
-	// state
+}
+
+// StateReader reads read-only session state.
+type StateReader interface {
 	Roster() []client.PlayerState
 	Tick() (client.TickState, bool)
 	PlayerName() string
 	PlayerClan() string
 	Server() string
-	// config: a feature OWNS its cvars, declared at Provision (§V46)
+}
+
+// ConfigStore declares and reads a feature's own cvars (a feature OWNS its
+// cvars, declared at Init, §V46).
+type ConfigStore interface {
 	DefineConfig(name, def, help string)
 	Config(name string) (string, bool)
-	// outgoing-chat filter chain (for !commands / silent-chat): each fn may
-	// rewrite the line or cancel the send (send=false)
-	AddSendChatFilter(fn func(msg string, team bool) (out string, send bool))
-	// named, rebindable actions (respect the keymap, §V19) + a default key
+}
+
+// ActionRegistry registers rebindable key actions (respecting the keymap, §V19)
+// and F1 console commands.
+type ActionRegistry interface {
 	DefineAction(name, defaultKey, help string, run func())
-	// F1 console commands (args string → output lines)
 	DefineCommand(name, help string, run func(args string) []string)
-	// status-bar / HUD contributions
+}
+
+// UIRegistry contributes to the rendered UI: an outgoing-chat filter chain (for
+// !commands / silent-chat — each fn may rewrite the line or cancel the send), a
+// status-bar field, and a per-name style (scoreboard/nameplate coloring).
+type UIRegistry interface {
+	AddSendChatFilter(fn func(msg string, team bool) (out string, send bool))
 	AddStatusField(fn func() string)
-	// render contributions: per-name style (scoreboard/nameplate coloring)
 	AddNameStyle(fn func(name, clan string) (Style, bool))
-	// cross-feature services (← caddy ctx.App): Provide one, Lookup another
+}
+
+// ServiceRegistry shares cross-feature services as `any` (§V53): a feature
+// Provides its concrete value under a name; consumers Lookup and type-assert.
+type ServiceRegistry interface {
 	Provide(name string, svc any)
 	Lookup(name string) (any, bool)
-	// DataPath returns an absolute path under the teetui config dir for a
-	// feature's persisted file ("" if no config dir is available).
+}
+
+// Paths resolves a path under the teetui config dir for a feature's persisted
+// file ("" if no config dir is available).
+type Paths interface {
 	DataPath(name string) string
+}
+
+// API is the full capability surface a feature may use — the sufficient, safe
+// API (§I.feature/§V47), composed from the sub-interfaces above (§V63).
+type API interface {
+	ChatSender
+	ActionDoer
+	Logger
+	StateReader
+	ConfigStore
+	ActionRegistry
+	UIRegistry
+	ServiceRegistry
+	Paths
 }
 
 // Feature is a registerable module identified by a unique name. Everything else
@@ -101,7 +145,7 @@ type Feature interface {
 // fields and look up services. Named per the Go -er convention, not Caddy's
 // "Provisioner" (§C27/§V61).
 type Initializer interface {
-	Init(Host) error
+	Init(API) error
 }
 
 // Validator is the optional post-init check (§V62): Validate runs after Init and
@@ -122,17 +166,17 @@ type Closer interface {
 // (§C27/§V61). A feature implements only the events it cares about; the core
 // type-asserts each registered feature and skips the handlers it lacks (§V60).
 // OnChat returning true suppresses the line; OnKey returning true consumes the key.
-type ConnectHandler interface{ OnConnect(Host) }
-type DisconnectHandler interface{ OnDisconnect(Host, string) }
+type ConnectHandler interface{ OnConnect(API) }
+type DisconnectHandler interface{ OnDisconnect(API, string) }
 type ChatHandler interface {
-	OnChat(Host, ChatEvent) (suppress bool)
+	OnChat(API, ChatEvent) (suppress bool)
 }
-type BroadcastHandler interface{ OnBroadcast(Host, string) }
-type ServerMsgHandler interface{ OnServerMsg(Host, string) }
-type KillHandler interface{ OnKill(Host, KillEvent) }
-type TickHandler interface{ OnTick(Host, client.TickState) }
+type BroadcastHandler interface{ OnBroadcast(API, string) }
+type ServerMsgHandler interface{ OnServerMsg(API, string) }
+type KillHandler interface{ OnKill(API, KillEvent) }
+type TickHandler interface{ OnTick(API, client.TickState) }
 type KeyHandler interface {
-	OnKey(Host, Key) (handled bool)
+	OnKey(API, Key) (handled bool)
 }
 
 // Cross-feature services are passed as `any` through Provide/Lookup (§V53): the
@@ -141,27 +185,27 @@ type KeyHandler interface {
 // The SDK stays feature-agnostic — it declares no feature-specific service
 // contracts (no Warlist, no PingStore); those live with the consumer.
 
-// NopHost is a Host that does nothing and returns zero values. Embed it in tests
+// NopAPI is a API that does nothing and returns zero values. Embed it in tests
 // (or a minimal feature harness) and override only the methods you exercise, so a
-// fake need not re-implement the whole Host surface.
-type NopHost struct{}
+// fake need not re-implement the whole API surface.
+type NopAPI struct{}
 
-func (NopHost) SendChat(string, bool)                               {}
-func (NopHost) Do(client.Action) error                              { return nil }
-func (NopHost) RconLogin(string)                                    {}
-func (NopHost) Log(string)                                          {}
-func (NopHost) Roster() []client.PlayerState                        { return nil }
-func (NopHost) Tick() (client.TickState, bool)                      { return client.TickState{}, false }
-func (NopHost) PlayerName() string                                  { return "" }
-func (NopHost) PlayerClan() string                                  { return "" }
-func (NopHost) Server() string                                      { return "" }
-func (NopHost) DefineConfig(string, string, string)                 {}
-func (NopHost) Config(string) (string, bool)                        { return "", false }
-func (NopHost) AddSendChatFilter(func(string, bool) (string, bool)) {}
-func (NopHost) DefineAction(string, string, string, func())         {}
-func (NopHost) DefineCommand(string, string, func(string) []string) {}
-func (NopHost) AddStatusField(func() string)                        {}
-func (NopHost) AddNameStyle(func(string, string) (Style, bool))     {}
-func (NopHost) Provide(string, any)                                 {}
-func (NopHost) Lookup(string) (any, bool)                           { return nil, false }
-func (NopHost) DataPath(name string) string                         { return name }
+func (NopAPI) SendChat(string, bool)                               {}
+func (NopAPI) Do(client.Action) error                              { return nil }
+func (NopAPI) RconLogin(string)                                    {}
+func (NopAPI) Log(string)                                          {}
+func (NopAPI) Roster() []client.PlayerState                        { return nil }
+func (NopAPI) Tick() (client.TickState, bool)                      { return client.TickState{}, false }
+func (NopAPI) PlayerName() string                                  { return "" }
+func (NopAPI) PlayerClan() string                                  { return "" }
+func (NopAPI) Server() string                                      { return "" }
+func (NopAPI) DefineConfig(string, string, string)                 {}
+func (NopAPI) Config(string) (string, bool)                        { return "", false }
+func (NopAPI) AddSendChatFilter(func(string, bool) (string, bool)) {}
+func (NopAPI) DefineAction(string, string, string, func())         {}
+func (NopAPI) DefineCommand(string, string, func(string) []string) {}
+func (NopAPI) AddStatusField(func() string)                        {}
+func (NopAPI) AddNameStyle(func(string, string) (Style, bool))     {}
+func (NopAPI) Provide(string, any)                                 {}
+func (NopAPI) Lookup(string) (any, bool)                           { return nil, false }
+func (NopAPI) DataPath(name string) string                         { return name }

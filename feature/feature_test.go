@@ -7,9 +7,9 @@ import (
 	"github.com/jxsl13/twclient/client"
 )
 
-// fakeHost embeds NopHost and overrides only the bits these tests assert.
+// fakeHost embeds NopAPI and overrides only the bits these tests assert.
 type fakeHost struct {
-	NopHost
+	NopAPI
 	chats   []string
 	logs    []string
 	configs map[string]string
@@ -31,16 +31,16 @@ type recFeat struct {
 }
 
 func (*recFeat) Name() string { return "rec" }
-func (*recFeat) Init(h Host) error {
+func (*recFeat) Init(h API) error {
 	h.DefineConfig("rec_enabled", "1", "demo")
 	return nil
 }
-func (f *recFeat) OnChat(h Host, e ChatEvent) bool {
+func (f *recFeat) OnChat(h API, e ChatEvent) bool {
 	f.chats = append(f.chats, e.Msg)
 	h.SendChat("seen:"+e.Msg, false)
 	return f.suppress
 }
-func (f *recFeat) OnKey(_ Host, k Key) bool { return k.Name == "F9" }
+func (f *recFeat) OnKey(_ API, k Key) bool { return k.Name == "F9" }
 
 // §T100/§V60: features register, init (declaring their own cvars), receive only
 // the events whose handler interface they implement, and compose (suppress OR,
@@ -109,14 +109,14 @@ func TestFeatureNoHandlers(t *testing.T) {
 // panicFeat panics in OnChat; provErrFeat errors in Init.
 type panicFeat struct{}
 
-func (panicFeat) Name() string                { return "boom" }
-func (panicFeat) Init(Host) error             { return nil }
-func (panicFeat) OnChat(Host, ChatEvent) bool { panic("boom") }
+func (panicFeat) Name() string               { return "boom" }
+func (panicFeat) Init(API) error             { return nil }
+func (panicFeat) OnChat(API, ChatEvent) bool { panic("boom") }
 
 type provErrFeat struct{}
 
-func (provErrFeat) Name() string    { return "preverr" }
-func (provErrFeat) Init(Host) error { return errors.New("nope") }
+func (provErrFeat) Name() string   { return "preverr" }
+func (provErrFeat) Init(API) error { return errors.New("nope") }
 
 // §T100/§V47: an Init error or a handler panic disables only the offending
 // feature; others keep working and the client never crashes.

@@ -27,7 +27,7 @@ type responders struct {
 
 func (*responders) Name() string { return "responders" }
 
-func (r *responders) Init(h feature.Host) error {
+func (r *responders) Init(h feature.API) error {
 	h.DefineConfig("cl_tapped_out_message", "0", "auto-reply with the tapped-out message when pinged (0/1)")
 	h.DefineConfig("cl_tapped_out_message_text", "I'm currently tapped out (afk)", "the tapped-out reply text")
 	h.DefineConfig("cl_auto_reply", "0", "auto-reply with cl_auto_reply_msg on every ping (0/1)")
@@ -36,7 +36,7 @@ func (r *responders) Init(h feature.Host) error {
 }
 
 // OnChat fires the auto-responders when a ping arrives.
-func (r *responders) OnChat(h feature.Host, e feature.ChatEvent) bool {
+func (r *responders) OnChat(h feature.API, e feature.ChatEvent) bool {
 	me := h.PlayerName()
 	if e.Name == me || !lang.ContainsName(e.Msg, me) {
 		return false // not a ping (or our own line)

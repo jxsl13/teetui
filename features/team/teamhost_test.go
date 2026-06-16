@@ -7,9 +7,9 @@ import (
 	"github.com/jxsl13/twclient/client"
 )
 
-// capHost is a feature.Host that captures registered commands and Do actions.
+// capHost is a feature.API that captures registered commands and Do actions.
 type capHost struct {
-	feature.NopHost
+	feature.NopAPI
 	cmds map[string]func(string) []string
 	last client.Action
 }

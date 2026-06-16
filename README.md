@@ -12,7 +12,7 @@ teetui is an independent Go re-implementation of the terminal UI shipped by
 teetui has a small **core** (the base client: connect, render, input, console,
 config) plus self-contained **feature modules** — every chillerbot-style behavior
 (warlist, reply-to-ping, chat filters, …) is its own package that registers
-itself and talks only to a public Host API. See
+itself and talks only to the public `feature.API`. See
 [Architecture](#architecture--extensibility).
 
 ---
@@ -255,14 +255,23 @@ Typed in chat (`t`). Applied locally; not sent to the server when
 ## Architecture & extensibility
 
 teetui is a small **core** (`internal/tui`: base client, render/input loop, the
-console, and the module **Host**) plus **feature modules** under `features/*`.
+console, and the module API) plus **feature modules** under `features/*`.
 Each feature self-registers in `init()` and is enabled by being blank-imported
 from `main.go` — like Caddy v2 modules or the `image` stdlib's format registry.
-Features talk **only** to the public `feature.Host` API (send chat, do a
+Features talk **only** to the public `feature.API` (send chat, do a
 twclient action, read roster/config, register cvars/commands/actions/status/
 name-styles, look up other features' services). There is **no raw packet /
 network primitive** in that surface, so a feature cannot become a flood/DoS tool,
 and a panicking feature is recovered + disabled, never crashing the client.
+
+A `Feature` needs only a `Name()`; setup and every event are **optional
+interfaces** the core discovers by type assertion (named after the Go standard
+library — `Init`/`Initializer`, `Close`/`Closer`, `…Handler`), so a feature
+implements just what it needs and new optional interfaces never break existing
+features. `feature.API` is composed from small capability interfaces
+(`ChatSender`, `Logger`, `StateReader`, `ConfigStore`, `ActionRegistry`,
+`UIRegistry`, `ServiceRegistry`, `Paths`), so a consumer can depend on the
+minimal slice it needs.
 
 A number of chillerbot-ux features are **deliberately not shipped** — but you can
 build them yourself as a feature or an external hook:
@@ -283,12 +292,13 @@ package myfeat
 
 import "github.com/jxsl13/teetui/feature"
 
-type feat struct{ feature.NopFeature }
+type feat struct{} // no embedding needed — implement only what you use
 
-func (feat) Name() string                  { return "myfeat" }
-func (feat) Provision(h feature.Host) error { return nil }
+func (feat) Name() string { return "myfeat" }
 
-func (feat) OnChat(h feature.Host, e feature.ChatEvent) bool {
+// OnChat is optional (the ChatHandler interface). Implement only the events
+// you care about.
+func (feat) OnChat(h feature.API, e feature.ChatEvent) bool {
 	if e.Msg == "!ping" {
 		h.SendChat("pong", false)
 	}
@@ -298,12 +308,15 @@ func (feat) OnChat(h feature.Host, e feature.ChatEvent) bool {
 func init() { feature.Register(feat{}) }
 ```
 
-Enable it by adding one blank import to `main.go`. Events: `OnConnect`,
-`OnDisconnect`, `OnChat` (→ suppress), `OnBroadcast`, `OnServerMsg`, `OnKill`,
-`OnTick`, `OnKey` (→ handled). At `Provision` a feature may `DefineConfig`
-(its own cvars), `DefineCommand` (F1 commands), `DefineAction` (rebindable keys),
-`AddStatusField`, `AddNameStyle` (scoreboard tint), and `Provide`/`Lookup`
-cross-feature services.
+Enable it by adding one blank import to `main.go`. Optional event interfaces:
+`ConnectHandler`, `DisconnectHandler`, `ChatHandler` (→ suppress),
+`BroadcastHandler`, `ServerMsgHandler`, `KillHandler`, `TickHandler`,
+`KeyHandler` (→ handled). Optional lifecycle: `Initializer` (`Init` — declare
+cvars/actions/status, look up services), `Validator` (`Validate`), `Closer`
+(`Close` — release goroutines/files on shutdown). In `Init` a feature may
+`DefineConfig` (its own cvars), `DefineCommand` (F1 commands), `DefineAction`
+(rebindable keys), `AddStatusField`, `AddNameStyle` (scoreboard tint), and
+`Provide`/`Lookup` cross-feature services.
 
 ### External command hooks (no recompile)
 

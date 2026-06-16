@@ -62,7 +62,7 @@ type lastPing struct {
 
 func (*lastPing) Name() string { return "lastping" }
 
-func (f *lastPing) Init(h feature.Host) error {
+func (f *lastPing) Init(h feature.API) error {
 	h.DefineConfig("cl_show_last_ping", "0", "show the most recent chat ping in the status bar (0/1)")
 	h.Provide("pings", f.store)
 	h.AddStatusField(func() string {
@@ -78,7 +78,7 @@ func (f *lastPing) Init(h feature.Host) error {
 }
 
 // OnChat queues a line that mentions us (and isn't our own).
-func (f *lastPing) OnChat(h feature.Host, e feature.ChatEvent) bool {
+func (f *lastPing) OnChat(h feature.API, e feature.ChatEvent) bool {
 	me := h.PlayerName()
 	if e.Name != me && lang.ContainsName(e.Msg, me) {
 		f.store.push(e.Name, e.Msg)

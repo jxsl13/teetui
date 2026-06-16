@@ -70,13 +70,13 @@ type chillpwFeature struct{}
 
 func (chillpwFeature) Name() string { return "chillpw" }
 
-func (chillpwFeature) Init(h feature.Host) error {
+func (chillpwFeature) Init(h feature.API) error {
 	h.DefineConfig("cl_chillpw", "0", "auto rcon-login from the secrets file on connect (0/1)")
 	h.DefineConfig("cl_password_file", "chillpw.txt", "path to the chillpw secrets file (addr password per line)")
 	return nil
 }
 
-func (chillpwFeature) OnConnect(h feature.Host) {
+func (chillpwFeature) OnConnect(h feature.API) {
 	if on, _ := h.Config("cl_chillpw"); on != "1" && on != "true" && on != "on" {
 		return
 	}

@@ -16,7 +16,7 @@ type closerFeat struct {
 }
 
 func (*closerFeat) Name() string { return "closer" }
-func (f *closerFeat) Init(Host) error {
+func (f *closerFeat) Init(API) error {
 	f.allocated = true // pretend to grab a resource
 	if f.panicInit {
 		panic("init boom")
@@ -24,7 +24,7 @@ func (f *closerFeat) Init(Host) error {
 	return nil
 }
 func (f *closerFeat) Close() error { f.closes++; return nil }
-func (f *closerFeat) OnChat(Host, ChatEvent) bool {
+func (f *closerFeat) OnChat(API, ChatEvent) bool {
 	if f.panicChat {
 		panic("chat boom")
 	}

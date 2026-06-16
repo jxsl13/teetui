@@ -37,7 +37,7 @@ func (h *cmdHook) Close() error {
 	return nil
 }
 
-func (h *cmdHook) Init(host feature.Host) error {
+func (h *cmdHook) Init(host feature.API) error {
 	h.timeout = 2 * time.Second
 	dir := host.DataPath("hooks")
 	if fi, err := os.Stat(dir); err == nil && fi.IsDir() {
@@ -48,7 +48,7 @@ func (h *cmdHook) Init(host feature.Host) error {
 
 // run executes the hook script for event (if present+executable), feeding payload
 // as JSON, and applies the printed actions via host. Failures are isolated.
-func (h *cmdHook) run(event string, payload any, host feature.Host) (suppress bool) {
+func (h *cmdHook) run(event string, payload any, host feature.API) (suppress bool) {
 	if h.dir == "" || h.closed.Load() {
 		return false
 	}
@@ -74,7 +74,7 @@ func (h *cmdHook) run(event string, payload any, host feature.Host) (suppress bo
 }
 
 // applyHookActions parses + applies a hook script's stdout (§T85).
-func applyHookActions(out string, host feature.Host) (suppress bool) {
+func applyHookActions(out string, host feature.API) (suppress bool) {
 	for _, line := range strings.Split(out, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" {
@@ -100,21 +100,21 @@ func applyHookActions(out string, host feature.Host) (suppress bool) {
 	return suppress
 }
 
-func (h *cmdHook) OnChat(host feature.Host, e feature.ChatEvent) bool {
+func (h *cmdHook) OnChat(host feature.API, e feature.ChatEvent) bool {
 	return h.run("chat", e, host)
 }
-func (h *cmdHook) OnConnect(host feature.Host) {
+func (h *cmdHook) OnConnect(host feature.API) {
 	h.run("connect", map[string]string{"server": host.Server()}, host)
 }
-func (h *cmdHook) OnDisconnect(host feature.Host, reason string) {
+func (h *cmdHook) OnDisconnect(host feature.API, reason string) {
 	h.run("disconnect", map[string]string{"reason": reason}, host)
 }
-func (h *cmdHook) OnBroadcast(host feature.Host, text string) {
+func (h *cmdHook) OnBroadcast(host feature.API, text string) {
 	h.run("broadcast", map[string]string{"text": text}, host)
 }
-func (h *cmdHook) OnServerMsg(host feature.Host, text string) {
+func (h *cmdHook) OnServerMsg(host feature.API, text string) {
 	h.run("servermsg", map[string]string{"text": text}, host)
 }
-func (h *cmdHook) OnKill(host feature.Host, e feature.KillEvent) { h.run("kill", e, host) }
+func (h *cmdHook) OnKill(host feature.API, e feature.KillEvent) { h.run("kill", e, host) }
 
 func init() { feature.Register(&cmdHook{}) }

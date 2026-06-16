@@ -47,7 +47,7 @@ type teamFeature struct{}
 
 func (teamFeature) Name() string { return "team" }
 
-func (f teamFeature) Init(h feature.Host) error {
+func (f teamFeature) Init(h feature.API) error {
 	h.DefineCommand("team", "team <spectators|red|blue|game> — join/switch team", func(args string) []string {
 		id, ok := teamID(args)
 		if !ok {
@@ -69,7 +69,7 @@ func (f teamFeature) Init(h feature.Host) error {
 }
 
 // setTeam requests the team change and reports it.
-func (teamFeature) setTeam(h feature.Host, id int) []string {
+func (teamFeature) setTeam(h feature.API, id int) []string {
 	if err := h.Do(client.ActSetTeam{Team: id}); err != nil {
 		return []string{"team change failed: " + err.Error()}
 	}

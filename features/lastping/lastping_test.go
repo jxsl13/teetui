@@ -42,7 +42,7 @@ func TestPingStore(t *testing.T) {
 }
 
 type fakeHost struct {
-	feature.NopHost
+	feature.NopAPI
 	cfg     map[string]string
 	svc     map[string]any
 	statusF []func() string

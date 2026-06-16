@@ -7,7 +7,7 @@ import (
 )
 
 type fh struct {
-	feature.NopHost
+	feature.NopAPI
 	cfg   map[string]string
 	chats []string
 }

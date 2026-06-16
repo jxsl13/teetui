@@ -72,7 +72,7 @@ func snapshot() []*entry {
 
 // safeCall runs fn for one feature, recovering panics: the feature is disabled
 // for the session and logged via host, never crashing the client (§V40/§V47).
-func safeCall(e *entry, host Host, what string, fn func() bool) (res bool) {
+func safeCall(e *entry, host API, what string, fn func() bool) (res bool) {
 	defer func() {
 		if rec := recover(); rec != nil {
 			mu.Lock()
@@ -90,7 +90,7 @@ func safeCall(e *entry, host Host, what string, fn func() bool) (res bool) {
 
 // closeFeature runs a feature's optional Close once (idempotent, §V62), recovering
 // any panic so teardown of one feature never affects another or the shutdown path.
-func closeFeature(e *entry, host Host) (err error) {
+func closeFeature(e *entry, host API) (err error) {
 	mu.Lock()
 	if e.closed {
 		mu.Unlock()
@@ -113,7 +113,7 @@ func closeFeature(e *entry, host Host) (err error) {
 // CloseAll runs Close on every registered feature that implements Closer — on
 // shutdown — INCLUDING disabled ones, since a feature disabled after a partial
 // Init may still hold resources (§V62). Idempotent per feature.
-func CloseAll(host Host) []error {
+func CloseAll(host API) []error {
 	mu.Lock()
 	all := make([]*entry, len(features))
 	copy(all, features)
@@ -130,7 +130,7 @@ func CloseAll(host Host) []error {
 // InitAll runs the optional Init hook of every registered feature once, in
 // order. A feature with no Initializer is skipped; one whose Init panics or
 // errors is disabled (and its error returned) but the others still init (§V47).
-func InitAll(host Host) []error {
+func InitAll(host API) []error {
 	var errs []error
 	for _, e := range snapshot() {
 		init, hasInit := e.f.(Initializer)
@@ -172,7 +172,7 @@ func InitAll(host Host) []error {
 // panic isolation. OnChat suppress is OR across features; OnKey handled stops at
 // the first consumer (§V39/§V47).
 
-func FireConnect(h Host) {
+func FireConnect(h API) {
 	for _, e := range snapshot() {
 		if hh, ok := e.f.(ConnectHandler); ok {
 			safeCall(e, h, "OnConnect", func() bool { hh.OnConnect(h); return false })
@@ -180,7 +180,7 @@ func FireConnect(h Host) {
 	}
 }
 
-func FireDisconnect(h Host, reason string) {
+func FireDisconnect(h API, reason string) {
 	for _, e := range snapshot() {
 		if hh, ok := e.f.(DisconnectHandler); ok {
 			safeCall(e, h, "OnDisconnect", func() bool { hh.OnDisconnect(h, reason); return false })
@@ -188,7 +188,7 @@ func FireDisconnect(h Host, reason string) {
 	}
 }
 
-func FireChat(h Host, ev ChatEvent) (suppress bool) {
+func FireChat(h API, ev ChatEvent) (suppress bool) {
 	for _, e := range snapshot() {
 		hh, ok := e.f.(ChatHandler)
 		if !ok {
@@ -201,7 +201,7 @@ func FireChat(h Host, ev ChatEvent) (suppress bool) {
 	return suppress
 }
 
-func FireBroadcast(h Host, text string) {
+func FireBroadcast(h API, text string) {
 	for _, e := range snapshot() {
 		if hh, ok := e.f.(BroadcastHandler); ok {
 			safeCall(e, h, "OnBroadcast", func() bool { hh.OnBroadcast(h, text); return false })
@@ -209,7 +209,7 @@ func FireBroadcast(h Host, text string) {
 	}
 }
 
-func FireServerMsg(h Host, text string) {
+func FireServerMsg(h API, text string) {
 	for _, e := range snapshot() {
 		if hh, ok := e.f.(ServerMsgHandler); ok {
 			safeCall(e, h, "OnServerMsg", func() bool { hh.OnServerMsg(h, text); return false })
@@ -217,7 +217,7 @@ func FireServerMsg(h Host, text string) {
 	}
 }
 
-func FireKill(h Host, ev KillEvent) {
+func FireKill(h API, ev KillEvent) {
 	for _, e := range snapshot() {
 		if hh, ok := e.f.(KillHandler); ok {
 			safeCall(e, h, "OnKill", func() bool { hh.OnKill(h, ev); return false })
@@ -225,7 +225,7 @@ func FireKill(h Host, ev KillEvent) {
 	}
 }
 
-func FireTick(h Host, st client.TickState) {
+func FireTick(h API, st client.TickState) {
 	for _, e := range snapshot() {
 		if hh, ok := e.f.(TickHandler); ok {
 			safeCall(e, h, "OnTick", func() bool { hh.OnTick(h, st); return false })
@@ -233,7 +233,7 @@ func FireTick(h Host, st client.TickState) {
 	}
 }
 
-func FireKey(h Host, k Key) (handled bool) {
+func FireKey(h API, k Key) (handled bool) {
 	for _, e := range snapshot() {
 		hh, ok := e.f.(KeyHandler)
 		if !ok {

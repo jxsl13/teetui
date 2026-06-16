@@ -10,7 +10,7 @@ import (
 // fakeHost captures the actions/logs a feature performs (embeds NopHost so only
 // the exercised methods are overridden).
 type fakeHost struct {
-	feature.NopHost
+	feature.NopAPI
 	actions []client.Action
 	logs    []string
 	defined map[string]func()

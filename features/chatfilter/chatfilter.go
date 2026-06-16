@@ -23,7 +23,7 @@ type chatFilter struct {
 
 func (*chatFilter) Name() string { return "chatfilter" }
 
-func (f *chatFilter) Init(h feature.Host) error {
+func (f *chatFilter) Init(h feature.API) error {
 	h.DefineConfig("cl_chat_spam_filter", "0", "hide spam pings (0=off 1=hide 2=hide+autoreply)")
 	h.DefineConfig("cl_chat_spam_filter_insults", "0", "also hide insults when cl_chat_spam_filter>0 (0/1)")
 	h.DefineCommand("addfilter", "addfilter <text> — hide chat containing text", func(args string) []string {
@@ -54,7 +54,7 @@ func (f *chatFilter) Init(h feature.Host) error {
 
 // OnChat hides a line per the filter config; mode 2 also fires a rate-limited
 // canned reply. Returning true suppresses the line (§V36).
-func (f *chatFilter) OnChat(h feature.Host, e feature.ChatEvent) bool {
+func (f *chatFilter) OnChat(h feature.API, e feature.ChatEvent) bool {
 	modeStr, _ := h.Config("cl_chat_spam_filter")
 	mode, _ := strconv.Atoi(strings.TrimSpace(modeStr))
 	if mode == 0 {
@@ -85,7 +85,7 @@ func (f *chatFilter) matches(msg string) bool {
 }
 
 // maybeReply sends a rate-limited canned reply to a filtered spammer (mode 2).
-func (f *chatFilter) maybeReply(h feature.Host, from string) {
+func (f *chatFilter) maybeReply(h feature.API, from string) {
 	f.mu.Lock()
 	if time.Since(f.lastRep) < 30*time.Second {
 		f.mu.Unlock()

@@ -41,7 +41,7 @@ func (a *App) DefaultDialer(name, clan, skin string) func(addr string, ver packe
 			// suppresses via OnChat below (§T81). A hook/feature may suppress the
 			// line (§T70/§T76/§V39); a suppressed line is not logged or ping-tracked.
 			ev := feature.ChatEvent{ClientID: e.ClientID, Name: from, Msg: e.Msg, Team: e.Team != 0}
-			if feature.FireChat(a.host(), ev) {
+			if feature.FireChat(a.api(), ev) {
 				return // a feature suppressed the line (e.g. chatfilter)
 			}
 			who := from
@@ -52,15 +52,15 @@ func (a *App) DefaultDialer(name, clan, skin string) func(addr string, ver packe
 			// ping tracking now lives in features/lastping (its OnChat fires above).
 		})
 		c.OnServerMsg(func(_ *client.Client, e packet.EventServerMsg) {
-			feature.FireServerMsg(a.host(), e.Msg)
+			feature.FireServerMsg(a.api(), e.Msg)
 			a.log.Addf(StyleSystem, "*** %s", e.Msg)
 		})
 		c.OnBroadcast(func(_ *client.Client, e packet.EventBroadcast) {
-			feature.FireBroadcast(a.host(), e.Text)
+			feature.FireBroadcast(a.api(), e.Text)
 			a.log.Addf(StyleSystem, ">> %s", e.Text)
 		})
 		c.OnKill(func(_ *client.Client, e packet.EventKill) {
-			feature.FireKill(a.host(), feature.KillEvent{
+			feature.FireKill(a.api(), feature.KillEvent{
 				Killer: e.Killer, Victim: e.Victim, Weapon: int(e.Weapon),
 			})
 		})

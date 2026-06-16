@@ -32,7 +32,7 @@ type warlistFeature struct {
 
 func (*warlistFeature) Name() string { return "warlist" }
 
-func (f *warlistFeature) Init(h feature.Host) error {
+func (f *warlistFeature) Init(h feature.API) error {
 	h.DefineConfig("cl_silent_chat_commands", "1", "apply !war/!peace/… locally without sending to server (0/1)")
 	h.DefineConfig("cl_war_list_auto_reload", "10", "reload the warlist file every N seconds (0=off)")
 
@@ -75,9 +75,9 @@ func (f *warlistFeature) Init(h feature.Host) error {
 
 // OnTick reloads the warlist when the file changed, every cl_war_list_auto_reload
 // seconds (§T66). Cheap: a stat at most once per interval.
-func (f *warlistFeature) OnTick(h feature.Host, _ client.TickState) { f.reloadCheck(h) }
+func (f *warlistFeature) OnTick(h feature.API, _ client.TickState) { f.reloadCheck(h) }
 
-func (f *warlistFeature) reloadCheck(h feature.Host) {
+func (f *warlistFeature) reloadCheck(h feature.API) {
 	if f.path == "" {
 		return
 	}

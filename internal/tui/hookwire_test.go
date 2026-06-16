@@ -12,7 +12,7 @@ type keyEater struct {
 }
 
 func (*keyEater) Name() string { return "keyeater" }
-func (k *keyEater) OnKey(_ feature.Host, key feature.Key) bool {
+func (k *keyEater) OnKey(_ feature.API, key feature.Key) bool {
 	k.got = append(k.got, key)
 	return key.Rune == 't'
 }
@@ -57,7 +57,7 @@ func TestFeatureNoneRegistered(t *testing.T) {
 // §T76: the Host adapter exposes teetui state to features.
 func TestHostCtxSurface(t *testing.T) {
 	app, _ := newTestApp(t)
-	h := app.host()
+	h := app.api()
 	if h.Server() != "test:8303" {
 		t.Errorf("Server() = %q", h.Server())
 	}

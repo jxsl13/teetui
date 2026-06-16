@@ -12,7 +12,7 @@ import (
 
 // recHost records SendChat/Log for assertions.
 type recHost struct {
-	feature.NopHost
+	feature.NopAPI
 	chats []string
 	team  []string
 	logs  []string

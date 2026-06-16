@@ -153,7 +153,7 @@ func NewAppWithScreen(scr tcell.Screen, server string, state *State, input *Inpu
 	// Drive feature OnTick handlers from the observer (§T70/§T76); the dispatch
 	// is a no-op when no feature is registered.
 	a.state.SetTickHook(func(st client.TickState) {
-		feature.FireTick(a.host(), st) // no-op when no feature is registered
+		feature.FireTick(a.api(), st) // no-op when no feature is registered
 	})
 	a.loadHistory()
 	if p, err := configDir(); err == nil {
@@ -234,7 +234,7 @@ func (a *App) ShowDisconnect(reason string) {
 	a.mu.Unlock()
 	a.wake()
 
-	feature.FireDisconnect(a.host(), reason) // notify feature modules (§T76)
+	feature.FireDisconnect(a.api(), reason) // notify feature modules (§T76)
 	if a.quitting() {
 		return
 	}
@@ -269,7 +269,7 @@ func (a *App) Stop() {
 	if a.frontendCancel != nil {
 		a.frontendCancel()
 	}
-	feature.CloseAll(a.host()) // release feature resources on shutdown (§T101/§V62)
+	feature.CloseAll(a.api()) // release feature resources on shutdown (§T101/§V62)
 	a.saveHistory()
 	select {
 	case <-a.quit:
@@ -405,7 +405,7 @@ func (a *App) handle(ev tcell.Event) {
 	case *tcell.EventKey:
 		// Features get first refusal on the key (§T76/§V39): a handler returning
 		// true consumes it before teetui's own handling. No-op when none registered.
-		if feature.FireKey(a.host(), featureKey(ev)) {
+		if feature.FireKey(a.api(), featureKey(ev)) {
 			return
 		}
 		switch {
@@ -1175,8 +1175,8 @@ func (a *App) Join(addr string, ver packet.Version) {
 		a.reconnAttempt.Store(0) // a clean connection resets the attempt count
 		close(stop)              // connected → watchdog must not cancel the live session
 		a.log.Addf(StyleSystem, "connected.")
-		go c.RunFrontends(fctx)       // drive observer (render) + controller (input)
-		feature.FireConnect(a.host()) // notify feature modules (§T76)
+		go c.RunFrontends(fctx)      // drive observer (render) + controller (input)
+		feature.FireConnect(a.api()) // notify feature modules (§T76)
 		a.wake()
 	}()
 }

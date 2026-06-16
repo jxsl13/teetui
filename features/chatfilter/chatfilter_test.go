@@ -6,9 +6,9 @@ import (
 	"github.com/jxsl13/teetui/feature"
 )
 
-// fh is a feature.Host capturing config + chats + commands.
+// fh is a feature.API capturing config + chats + commands.
 type fh struct {
-	feature.NopHost
+	feature.NopAPI
 	cfg   map[string]string
 	chats []string
 	cmds  map[string]func(string) []string

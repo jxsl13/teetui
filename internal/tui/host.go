@@ -13,7 +13,7 @@ import (
 )
 
 // dynVar is a feature-defined config variable (§T76). Features declare these at
-// Provision via Host.DefineConfig; they live alongside the static core cvars and
+// Init via API.DefineConfig; they live alongside the static core cvars and
 // are get/set from the console exactly the same way.
 type dynVar struct {
 	value string
@@ -37,38 +37,38 @@ type featAction struct {
 	help string
 }
 
-// appHost adapts *App to feature.Host — the capability surface handed to feature
+// appAPI adapts *App to feature.API — the capability surface handed to feature
 // modules (§T76/§I.feature). It exposes only teetui's safe twclient-backed
 // actions plus the registration sinks (config/action/status/name-style/service/
 // outgoing-chat). No raw network access (§V39/§V47).
-type appHost struct{ a *App }
+type appAPI struct{ a *App }
 
-// host returns the feature Host for this app.
-func (a *App) host() feature.Host { return appHost{a} }
+// api returns the feature.API capability surface for this app.
+func (a *App) api() feature.API { return appAPI{a} }
 
 // provisionFeatures provisions every registered feature against this app's Host
 // (§T76). Called once at startup; a feature that errors/panics is disabled by the
 // registry (§V47). No-op when no feature package is imported.
 func (a *App) provisionFeatures() {
-	for _, err := range feature.InitAll(a.host()) {
+	for _, err := range feature.InitAll(a.api()) {
 		a.log.Addf(StyleSelf, "feature disabled: %v", err)
 	}
 }
 
-func (h appHost) SendChat(msg string, team bool) { h.a.sendChat(msg, team) }
+func (h appAPI) SendChat(msg string, team bool) { h.a.sendChat(msg, team) }
 
-func (h appHost) Do(act client.Action) error {
+func (h appAPI) Do(act client.Action) error {
 	if c := h.a.cli.Load(); c != nil {
 		return c.Do(act)
 	}
 	return nil
 }
 
-func (h appHost) Log(msg string) { h.a.log.Addf(StyleSystem, "%s", msg) }
+func (h appAPI) Log(msg string) { h.a.log.Addf(StyleSystem, "%s", msg) }
 
 // RconLogin authenticates rcon off the event loop and logs the outcome (§T84);
 // the password is never logged. Async so a feature's OnConnect doesn't block.
-func (h appHost) RconLogin(password string) {
+func (h appAPI) RconLogin(password string) {
 	c := h.a.cli.Load()
 	if c == nil || password == "" {
 		return
@@ -86,28 +86,28 @@ func (h appHost) RconLogin(password string) {
 }
 
 // DataPath returns an absolute path under the teetui config dir (§T84), or "".
-func (h appHost) DataPath(name string) string {
+func (h appAPI) DataPath(name string) string {
 	if dir, err := configDir(); err == nil {
 		return filepath.Join(dir, name)
 	}
 	return ""
 }
 
-func (h appHost) Roster() []client.PlayerState {
+func (h appAPI) Roster() []client.PlayerState {
 	if c := h.a.cli.Load(); c != nil {
 		return c.Roster()
 	}
 	return nil
 }
 
-func (h appHost) Tick() (client.TickState, bool) { return h.a.state.Get() }
-func (h appHost) PlayerName() string             { return h.a.playerName }
-func (h appHost) PlayerClan() string             { return h.a.playerClan }
-func (h appHost) Server() string                 { return h.a.server }
+func (h appAPI) Tick() (client.TickState, bool) { return h.a.state.Get() }
+func (h appAPI) PlayerName() string             { return h.a.playerName }
+func (h appAPI) PlayerClan() string             { return h.a.playerClan }
+func (h appAPI) Server() string                 { return h.a.server }
 
 // DefineConfig registers a feature cvar (idempotent: keeps the existing value on
 // re-define so a reload doesn't clobber a user change).
-func (h appHost) DefineConfig(name, def, help string) {
+func (h appAPI) DefineConfig(name, def, help string) {
 	h.a.cfgMu.Lock()
 	if _, ok := h.a.dynVars[name]; !ok {
 		h.a.dynVars[name] = &dynVar{value: def, help: help}
@@ -117,7 +117,7 @@ func (h appHost) DefineConfig(name, def, help string) {
 
 // Config returns a config value, checking feature cvars then the static core
 // cvars (§T76).
-func (h appHost) Config(name string) (string, bool) {
+func (h appAPI) Config(name string) (string, bool) {
 	h.a.cfgMu.Lock()
 	if v, ok := h.a.dynVars[name]; ok {
 		val := v.value
@@ -134,13 +134,13 @@ func (h appHost) Config(name string) (string, bool) {
 
 // AddSendChatFilter appends an outgoing-chat transform to the chain (§T76): each
 // fn may edit the message or cancel the send (return send=false).
-func (h appHost) AddSendChatFilter(fn func(msg string, team bool) (string, bool)) {
+func (h appAPI) AddSendChatFilter(fn func(msg string, team bool) (string, bool)) {
 	h.a.sendChatHook = append(h.a.sendChatHook, fn)
 }
 
 // DefineAction binds a feature action to its default key (§T76/§V46). The key
 // token is parsed via the keymap grammar (a rune or a named key like "F3").
-func (h appHost) DefineAction(name, defaultKey, help string, run func()) {
+func (h appAPI) DefineAction(name, defaultKey, help string, run func()) {
 	if run == nil || defaultKey == "" {
 		return
 	}
@@ -157,7 +157,7 @@ func (h appHost) DefineAction(name, defaultKey, help string, run func()) {
 
 // DefineCommand registers an F1 console command for a feature (§T92). The
 // handler receives the raw argument string and returns log lines.
-func (h appHost) DefineCommand(name, help string, run func(args string) []string) {
+func (h appAPI) DefineCommand(name, help string, run func(args string) []string) {
 	if name == "" || run == nil {
 		return
 	}
@@ -165,24 +165,24 @@ func (h appHost) DefineCommand(name, help string, run func(args string) []string
 }
 
 // AddStatusField registers a status-bar contribution (§T76).
-func (h appHost) AddStatusField(fn func() string) {
+func (h appAPI) AddStatusField(fn func() string) {
 	if fn != nil {
 		h.a.statusFields = append(h.a.statusFields, fn)
 	}
 }
 
 // AddNameStyle registers a per-name styler used by the scoreboard (§T76).
-func (h appHost) AddNameStyle(fn func(name, clan string) (feature.Style, bool)) {
+func (h appAPI) AddNameStyle(fn func(name, clan string) (feature.Style, bool)) {
 	if fn != nil {
 		h.a.nameStylers = append(h.a.nameStylers, fn)
 	}
 }
 
-// Provide registers a cross-feature service (§T76, ← caddy ctx.App).
-func (h appHost) Provide(name string, svc any) { h.a.services[name] = svc }
+// Provide registers a cross-feature service (§T76/§V53).
+func (h appAPI) Provide(name string, svc any) { h.a.services[name] = svc }
 
 // Lookup fetches a service registered by another feature.
-func (h appHost) Lookup(name string) (any, bool) { v, ok := h.a.services[name]; return v, ok }
+func (h appAPI) Lookup(name string) (any, bool) { v, ok := h.a.services[name]; return v, ok }
 
 // featureKey maps a tcell key event to feature.Key for OnKey dispatch (§T76).
 func featureKey(ev *tcell.EventKey) feature.Key {
