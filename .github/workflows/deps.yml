@@ -1,0 +1,70 @@
+name: Deps
+
+# Dependency-bump gate (SPEC C40 / V89a): keep deps at the latest compatible
+# versions as part of the definition of done. Runs weekly and on demand; bumps
+# every module (`go get -u ./...`), re-tidies, then builds + tests on the bumped
+# versions. A breaking bump fails the run (fix/pin manually, never silently
+# skip — V89a). On a clean green bump with changes it opens a PR so the bump
+# lands through normal CI (the quality gates + cross-OS test matrix in ci.yml).
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: deps
+  cancel-in-progress: true
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  bump:
+    name: bump deps to latest
+    runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: 0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.x
+          cache: true
+
+      - name: Bump + tidy
+        run: |
+          go get -u ./...
+          go mod tidy
+
+      # A bump that breaks the build/tests must fail loudly (V89a) — do NOT open
+      # a PR with a broken tree.
+      - name: Build + test on bumped deps
+        run: |
+          go build ./...
+          go test ./...
+
+      - name: Open PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: deps/go-get-u
+          title: "deps: bump Go modules to latest"
+          commit-message: |
+            deps: bump Go modules to latest (C40/V89a)
+
+            go get -u ./... && go mod tidy; build + tests green.
+
+            Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+          body: |
+            Automated dependency bump (`go get -u ./... && go mod tidy`).
+
+            Build + tests passed on the bumped versions. Quality gates and the
+            cross-OS test matrix run on this PR via `ci.yml` (SPEC C40/V89).
+          delete-branch: true

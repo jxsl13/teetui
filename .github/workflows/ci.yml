@@ -105,6 +105,53 @@ jobs:
           path: coverage.out
           if-no-files-found: warn
 
+  quality:
+    name: quality gates (fmt / tidy / generate / vuln)
+    runs-on: ubuntu-latest
+    # Definition-of-done gates (SPEC C40 / V89). Each gate is its own step so a
+    # red run pinpoints which one drifted. `go vet` stays in the cross-OS `test`
+    # job (V89e); these gates are OS-independent so they run once on Linux.
+    env:
+      CGO_ENABLED: 0
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.x
+          cache: true
+
+      # (b) no gofmt drift.
+      - name: gofmt
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt drift — run 'gofmt -w .':"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      # (d) go.mod/go.sum are tidy (no stray/missing deps).
+      - name: go mod tidy
+        run: |
+          go mod tidy
+          git diff --quiet go.mod go.sum \
+            || { echo "::error::go.mod/go.sum not tidy — run 'go mod tidy'"; git diff go.mod go.sum; exit 1; }
+
+      # (c) generated code is current.
+      - name: go generate
+        run: |
+          go generate ./...
+          git diff --quiet \
+            || { echo "::error::generated code stale — run 'go generate ./...'"; git diff --stat; exit 1; }
+
+      # (f) no known vulnerabilities.
+      - name: govulncheck
+        run: |
+          go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
   build-e2e-images:
     name: build e2e image ${{ matrix.service }}
     runs-on: ubuntu-latest
