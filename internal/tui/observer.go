@@ -44,6 +44,15 @@ func (s *State) Observe(_ *client.Client, st client.TickState) {
 	}
 }
 
+// Clear drops the stored tick so the renderer shows no stale map/tees — used on
+// disconnect and at the start of a (re)connect (§T117/§V79).
+func (s *State) Clear() {
+	s.mu.Lock()
+	s.st = client.TickState{}
+	s.have = false
+	s.mu.Unlock()
+}
+
 // Get returns the latest tick and whether one has arrived yet.
 func (s *State) Get() (client.TickState, bool) {
 	s.mu.RLock()

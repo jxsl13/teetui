@@ -234,6 +234,7 @@ func (a *App) ShowDisconnect(reason string) { a.onDisconnect(a.cur(), reason) }
 func (a *App) onDisconnect(s *session, reason string) {
 	s.connected.Store(false)
 	s.joining.Store(false)
+	s.state.Clear()                         // drop the dead map/tees from the view (§T117/§V79)
 	feature.FireDisconnect(a.api(), reason) // notify feature modules (§T76)
 
 	if !a.isPrimary(s) { // a dummy dropped — just remove it (§V77)
@@ -1200,6 +1201,7 @@ func (a *App) joinSession(s *session, addr string, ver packet.Version, isDummy b
 	if old := s.cli.Load(); old != nil {
 		_ = old.Close()
 	}
+	s.state.Clear() // fresh slate: ⊥ render the previous session's map (§T117/§V79)
 	s.connected.Store(false)
 	s.joining.Store(true) // handshake in flight → show "connecting" (§B9)
 	s.server = addr

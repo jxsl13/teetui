@@ -169,3 +169,18 @@ func TestConnectDummy(t *testing.T) {
 		t.Errorf("connectDummy did not follow the new dummy (active=%q)", app.cur().name)
 	}
 }
+
+// §T119/§V66: the Esc menu can swap the move/aim key sets live.
+func TestEscMenuSwapMoveKeys(t *testing.T) {
+	app, _ := newTestApp(t)
+	before := app.cfgSnap().MoveKeys
+	app.toggleMoveKeys()
+	after := app.cfgSnap().MoveKeys
+	if before == after {
+		t.Errorf("toggleMoveKeys did not change: %q", after)
+	}
+	app.toggleMoveKeys()
+	if app.cfgSnap().MoveKeys != before {
+		t.Error("toggle should round-trip")
+	}
+}

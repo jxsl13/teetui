@@ -8,37 +8,40 @@ import (
 	"github.com/jxsl13/twclient/packet"
 )
 
-// defaultInputHold is the movement/jump hold window (§C34/§V73). A press marks
-// the key "held" until now+hold; terminal key-repeat refreshes it while the key
-// is physically down, and once it lapses (key released → repeats stop) the field
-// returns to neutral. Tuned to exceed a typical key-repeat interval; override via
-// cl_input_hold_ms.
-const defaultInputHold = 350 * time.Millisecond
+// defaultJumpHold is the momentary-jump pulse window (§C34/§V80). A jump press
+// raises Jump=1 until now+hold, then it clears — so a tap is one jump and there
+// is no infinite jump (B10). Override via cl_input_hold_ms.
+const defaultJumpHold = 350 * time.Millisecond
 
-// InputController is the single action-emitting consumer. It mimics the DDNet
-// per-tick held-input model under the terminal's no-key-release limitation
-// (§C34): movement direction and jump DECAY back to neutral after a hold window
-// unless refreshed by key-repeat; fire is an edge counter; hook is an explicit
-// toggle; aim is a sticky cardinal target. All input goes out via client.Do
-// (ActInput) through OnTick — teetui never crafts raw input packets (§V12).
+// InputController is the single action-emitting consumer, adapting DDNet's
+// per-tick held-input model to the terminal's no-key-release limitation (§C34):
+//   - movement direction is STICKY (press left/right → move until stop/opposite),
+//     so it stays combinable with a separate jump/fire/hook keypress (§V80/B13);
+//   - jump is a MOMENTARY pulse (one jump per press, no latch, B10);
+//   - fire is an edge counter; hook is an explicit toggle;
+//   - aim is a sticky cardinal target, never the zero vector (§V78/B11).
+//
+// All input goes out via client.Do(ActInput) through OnTick — teetui never crafts
+// raw input packets (§V12).
 type InputController struct {
 	mu        sync.Mutex
 	hold      time.Duration
-	moveDir   int       // -1 left, 0 none, 1 right (held)
-	moveUntil time.Time // movement decays to 0 after this
-	jumpUntil time.Time // jump pressed (1) until this, then 0
+	moveDir   int       // -1 left, 0 none, 1 right (STICKY)
+	jumpUntil time.Time // jump pressed (1) until this, then 0 (momentary)
 	hook      bool      // toggle
 	fire      int32     // edge counter
-	aimX      int       // sticky aim target
+	aimX      int       // sticky aim target (never 0,0)
 	aimY      int
 	weapon    int // wanted weapon (0 = no change)
 }
 
-// NewInputController returns a controller with neutral input.
-func NewInputController() *InputController { return &InputController{hold: defaultInputHold} }
+// NewInputController returns a controller with neutral movement and a stable
+// default aim (facing right) so the tee never aims at the zero vector (§V78).
+func NewInputController() *InputController {
+	return &InputController{hold: defaultJumpHold, aimX: aimReach, aimY: 0}
+}
 
-// SetHold sets the movement/jump hold window (cl_input_hold_ms, §C34); <=0 keeps
-// the default.
+// SetHold sets the jump pulse window (cl_input_hold_ms, §C34); <=0 keeps default.
 func (c *InputController) SetHold(d time.Duration) {
 	if d <= 0 {
 		return
@@ -51,20 +54,15 @@ func (c *InputController) SetHold(d time.Duration) {
 // Mode runs the controller on the frame cadence alongside the renderer.
 func (c *InputController) Mode() client.TickMode { return client.TickModeFrame }
 
-// OnTick builds and emits the held input for this tick, applying the decay so a
-// released movement/jump key (no key-repeat refresh) returns to neutral (§V73).
+// OnTick builds and emits the held input for this tick: sticky direction, the
+// momentary jump pulse, and an aim target that is never the zero vector (§V78).
 func (c *InputController) OnTick(_ *client.Client, _ client.TickState) []client.Action {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	now := time.Now()
 	var in packet.PlayerInput
-	dir := 0
-	if now.Before(c.moveUntil) {
-		dir = c.moveDir
-	}
-	_ = in.SetDirection(dir)
-	if now.Before(c.jumpUntil) {
-		_ = in.SetJump(1)
+	_ = in.SetDirection(c.moveDir) // sticky (§V80)
+	if time.Now().Before(c.jumpUntil) {
+		_ = in.SetJump(1) // momentary pulse (§V80)
 	}
 	if c.hook {
 		_ = in.SetHook(1)
@@ -72,33 +70,34 @@ func (c *InputController) OnTick(_ *client.Client, _ client.TickState) []client.
 	if c.weapon != 0 {
 		_ = in.SetWantedWeapon(c.weapon)
 	}
-	in.SetTarget(c.aimX, c.aimY)
+	ax, ay := c.aimX, c.aimY
+	if ax == 0 && ay == 0 { // never aim at the tee itself (§V78/B11)
+		ax = aimReach
+	}
+	in.SetTarget(ax, ay)
 	in.Fire = packet.FireCount(c.fire)
 	return []client.Action{client.ActInput{Input: in}}
 }
 
-// PressLeft / PressRight start (or refresh) held movement; PressStop ends it. The
-// hold window lets terminal key-repeat sustain movement while the key is down.
-func (c *InputController) PressLeft()  { c.press(-1) }
-func (c *InputController) PressRight() { c.press(1) }
+// PressLeft / PressRight set sticky movement; it holds until PressStop or the
+// opposite direction — combinable with jump/fire (§V80).
+func (c *InputController) PressLeft()  { c.setDir(-1) }
+func (c *InputController) PressRight() { c.setDir(1) }
 
-func (c *InputController) press(dir int) {
+func (c *InputController) setDir(dir int) {
 	c.mu.Lock()
 	c.moveDir = dir
-	c.moveUntil = time.Now().Add(c.hold)
 	c.mu.Unlock()
 }
 
-// PressStop clears held movement immediately.
+// PressStop clears sticky movement.
 func (c *InputController) PressStop() {
 	c.mu.Lock()
 	c.moveDir = 0
-	c.moveUntil = time.Time{}
 	c.mu.Unlock()
 }
 
-// PressJump marks jump held for the hold window (a tap = one jump; holding the
-// key re-presses via key-repeat → sustained jump, like DDNet hold-jump).
+// PressJump raises a momentary jump pulse (one jump per press; no latch, B10).
 func (c *InputController) PressJump() {
 	c.mu.Lock()
 	c.jumpUntil = time.Now().Add(c.hold)

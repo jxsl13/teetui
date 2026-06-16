@@ -30,6 +30,20 @@ func (a *App) openEscMenu() {
 
 func (a *App) closeEscMenu() { a.escMenu.open = false }
 
+// toggleMoveKeys flips cl_move_keys wasd↔arrows live (§T119/§V66), so a player
+// can swap the movement/aim key sets from the menu without the console.
+func (a *App) toggleMoveKeys() {
+	a.cfgMu.Lock()
+	if a.cfg.MoveKeys == "arrows" {
+		a.cfg.MoveKeys = "wasd"
+	} else {
+		a.cfg.MoveKeys = "arrows"
+	}
+	v := a.cfg.MoveKeys
+	a.cfgMu.Unlock()
+	a.log.Addf(StyleSystem, "move keys: %s", v)
+}
+
 // buildEscMenuItems assembles the action buttons for the current context (§V74/
 // §V75): team vs solo Join buttons, Kill/Pause while in-game, and Disconnect.
 // (Connect-dummy and the follow list are added in §T114/§T115.)
@@ -53,6 +67,8 @@ func (a *App) buildEscMenuItems() []menuItem {
 			menuItem{"Pause", func() { a.sendChat("/pause", false) }},
 		)
 	}
+	// Swap which key set moves vs aims, live (§T119/§V66 cl_move_keys).
+	items = append(items, menuItem{"Swap move keys (" + a.cfgSnap().MoveKeys + ")", a.toggleMoveKeys})
 	// Connect dummy (§T115) — only when the server allows dummies (per-IP limit is
 	// enforced server-side, V76).
 	if c := a.cur().cli.Load(); c != nil && c.Capabilities().AllowDummy {
