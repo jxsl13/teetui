@@ -6,6 +6,7 @@ require (
 	github.com/gdamore/tcell/v2 v2.13.10
 	github.com/jxsl13/twclient v0.2.4
 	github.com/mattn/go-runewidth v0.0.24
+	golang.org/x/text v0.35.0
 )
 
 require (
@@ -20,5 +21,4 @@ require (
 	golang.org/x/image v0.38.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/term v0.37.0 // indirect
-	golang.org/x/text v0.35.0 // indirect
 )

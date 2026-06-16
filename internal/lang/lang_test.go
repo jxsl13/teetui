@@ -16,8 +16,13 @@ func TestFindWord(t *testing.T) {
 		{"this is high", "hi", false},
 		{"привет всем", "привет", true},
 		{"приветствие", "привет", false},
+		{"ПРИВЕТ всем", "привет", true}, // §V64 case-fold (Cyrillic)
 		{"", "hi", false},
 		{"hi", "", false},
+		// §V64 accent-fold: query without accents matches accented text.
+		{"nice café here", "cafe", true},
+		{"über alles", "uber", true},
+		{"helloween", "hello", false}, // boundary kept after folding
 	}
 	for _, c := range cases {
 		if got := FindWord(c.text, c.word); got != c.want {
@@ -54,5 +59,27 @@ func TestClassifiers(t *testing.T) {
 	}
 	if !ContainsAny("HOW r u", "how r u") || !HasQuestionMark("ok?") {
 		t.Error("containsAny/questionMark wrong")
+	}
+}
+
+// §C28/§V64: matching is accent- and case-insensitive and NFC/NFD-agnostic.
+func TestFoldNormalizedMatching(t *testing.T) {
+	// composed "é" (U+00E9) vs decomposed "e"+U+0301 must both match "cafe".
+	composed := "café"
+	decomposed := "cafe\u0301" // e + combining acute (NFD)
+	if !FindWord(composed+" time", "cafe") || !FindWord(decomposed+" time", "cafe") {
+		t.Error("composed/decomposed accent not folded")
+	}
+	// The umlaut in "tschüss" folds away → real spelling matches the bye list.
+	if !IsBye("tschüss") || !IsBye("tschuss") {
+		t.Error("tschüss/tschuss not folded in IsBye")
+	}
+	// ContainsName is accent- and case-insensitive.
+	if !ContainsName("hey JöRG!", "jorg") {
+		t.Error("ContainsName not fold-normalized")
+	}
+	// Accent folding must not break word boundaries.
+	if FindWord("cafeteria", "cafe") {
+		t.Error("boundary lost: 'cafe' matched inside 'cafeteria'")
 	}
 }
