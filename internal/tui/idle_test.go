@@ -36,14 +36,15 @@ func TestIdleNotConnecting(t *testing.T) {
 		t.Errorf("joining scene = %q want connecting…", app.scenePlaceholder())
 	}
 
-	// Connected (map not loaded yet) still reads as connecting in the scene.
+	// Connected but no map yet → actionable retry notice, not an endless spinner
+	// (§B18: twclient may connect "without map").
 	app.cur().joining.Store(false)
 	app.cur().connected.Store(true)
 	if got := connLabel(app.connStatus()); got != "connected" {
 		t.Errorf("connected status = %q", got)
 	}
-	if app.scenePlaceholder() != "connecting…" {
-		t.Errorf("connected+loading scene = %q want connecting…", app.scenePlaceholder())
+	if got := app.scenePlaceholder(); !strings.Contains(got, "press R") {
+		t.Errorf("connected-no-map scene = %q want a re-download notice", got)
 	}
 }
 
@@ -53,5 +54,22 @@ func TestIdleFrameNoConnecting(t *testing.T) {
 	app.draw()
 	if strings.Contains(dumpSim(sim), "connecting") {
 		t.Errorf("idle frame shows 'connecting':\n%s", dumpSim(sim))
+	}
+}
+
+// §T125/§V86/§B18: connected with no map shows a re-download notice; joining
+// shows the spinner; idle shows the browser hint.
+func TestConnectedNoMapNotice(t *testing.T) {
+	app, _ := newTestApp(t)
+	// joining (download in flight) → spinner.
+	app.cur().joining.Store(true)
+	if app.scenePlaceholder() != "connecting…" {
+		t.Errorf("joining = %q want connecting…", app.scenePlaceholder())
+	}
+	// connected, no map → actionable retry, not the spinner.
+	app.cur().joining.Store(false)
+	app.cur().connected.Store(true)
+	if got := app.scenePlaceholder(); got == "connecting…" || !strings.Contains(got, "re-download") {
+		t.Errorf("connected-no-map = %q want a re-download notice", got)
 	}
 }

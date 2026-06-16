@@ -303,13 +303,19 @@ func (a *App) quitting() bool {
 // (≠ idle). At idle teetui shows "not connected", never "connecting" (§B9).
 func (a *App) connecting() bool { return a.cur().joining.Load() || a.reconnecting.Load() }
 
-// scenePlaceholder is the game-window text when there is no map yet: "connecting…"
-// while joining or connected-but-loading, else an idle hint (§B9).
+// scenePlaceholder is the game-window text when there is no map yet (§B9/§B18):
+// "connecting…" while a join/download is in flight; once connected with still no
+// map, twclient gave up on the download ("continuing without map") → an actionable
+// retry notice rather than an endless spinner; otherwise the idle browser hint.
 func (a *App) scenePlaceholder() string {
-	if a.cur().connected.Load() || a.connecting() {
+	switch {
+	case a.connecting():
 		return "connecting…"
+	case a.cur().connected.Load():
+		return "map not loaded — press R to re-download"
+	default:
+		return "not connected — press B for the server browser"
 	}
-	return "not connected — press B for the server browser"
 }
 
 func (a *App) connStatus() connStatus {
