@@ -23,7 +23,7 @@ type conResult struct {
 // builtinHelp is the per-command help text for the fixed (non-cvar) console
 // commands (← chillerbot console help-text line, §T39).
 var builtinHelp = map[string]string{
-	"connect": "connect <host:port> [0.6|0.7] — connect to a server",
+	"connect": "connect <host:port> [0.6|0.7] — connect (version optional: auto-detected)",
 	"help":    "help [command] — list commands or show help for one",
 	"echo":    "echo <text> — print text to the log",
 	"say":     "say <message> — send a chat message",
@@ -101,7 +101,7 @@ func runConsole(line string, cfg *Config) conResult {
 		}
 		return conResult{Chat: rest}
 	case "version":
-		return conResult{Out: []string{"teetui (twclient v0.2.4)"}}
+		return conResult{Out: []string{"teetui (twclient v0.2.6)"}}
 	case "connect":
 		if rest == "" {
 			return conResult{Out: []string{"usage: connect <host:port> [0.6|0.7]"}}

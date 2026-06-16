@@ -11,6 +11,8 @@ import (
 // (matching the -version flag): "0.6", "0.7", or the raw number otherwise.
 func versionLabel(ver packet.Version) string {
 	switch ver {
+	case packet.VersionAuto:
+		return "auto"
 	case packet.Version06:
 		return "0.6"
 	case packet.Version07:

@@ -953,15 +953,18 @@ func (a *App) runLocal(line string) {
 
 // doConnect handles a `connect <addr> [ver]` console/config command (§T89/§T91).
 // Before the dialer exists (config exec at startup) it queues the connect for
-// Start; afterwards it joins immediately. Version comes from the command arg, or
-// defaults to 0.6 (twclient has no auto-detect) — there is no global version
-// flag (§V51).
+// Start; afterwards it joins immediately. Version comes from the command arg;
+// OMITTED → packet.VersionAuto, so twclient probes the server and picks the
+// protocol (prefers 0.6, §C23/§V87). Explicit "0.6"/"0.7" pins. No global flag.
 func (a *App) doConnect(addr, ver string) {
 	if addr == "" {
 		return
 	}
-	v := packet.Version06
-	if ver == "0.7" {
+	v := packet.VersionAuto // omitted → twclient auto-detects (§V87)
+	switch ver {
+	case "0.6":
+		v = packet.Version06
+	case "0.7":
 		v = packet.Version07
 	}
 	if a.dialer == nil {
@@ -1263,7 +1266,10 @@ func (a *App) joinSession(s *session, addr string, ver packet.Version, isDummy b
 			return
 		}
 		s.connected.Store(true)
-		s.joining.Store(false) // handshake done (§B9)
+		s.joining.Store(false)                           // handshake done (§B9)
+		if rv := c.Version(); rv != packet.VersionAuto { // record resolved protocol (§V87)
+			s.version = rv
+		}
 		if !isDummy {
 			a.reconnecting.Store(false)
 			a.reconnAttempt.Store(0) // a clean connection resets the attempt count

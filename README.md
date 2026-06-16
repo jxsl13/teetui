@@ -74,7 +74,7 @@ cl_connect_timeout 30
 cl_tapped_out_message 1
 cl_auto_reply 0
 
-# connect last → version comes from the arg (default 0.6 if omitted)
+# connect last → version from the arg; omitted = auto-detected
 connect ddnet.example.org:8303 0.7
 ```
 
@@ -134,7 +134,8 @@ feature module).
 
 ### Connection & browser
 - **Both protocols** — 0.6 and 0.7; the version is taken from the server-browser
-  entry on join, or the `connect` argument (default 0.6).
+  entry on join, or the `connect` argument — omitted, it is **auto-detected**
+  (twclient probes the server, preferring 0.6).
 - **Server browser** (`B`) — live master list with tabs
   **Internet / LAN / Favorites / DDNet / KoG / Vanilla** (`←`/`→`), incremental
   search (`/`), `↑`/`↓` select, `Enter` join, `f` favorite (persisted),
@@ -228,7 +229,7 @@ bindings.
 | command | description |
 |---|---|
 | `help [cmd]` | list commands, or show help for one |
-| `connect <host:port> [0.6\|0.7]` | connect to a server (version default 0.6) |
+| `connect <host:port> [0.6\|0.7]` | connect to a server (version optional — auto-detected) |
 | `say <msg>` | send a chat message |
 | `spec` / `spectate` / `pause` `[name]` | spectate a player, or free-view |
 | `echo <text>` | print text to the log |
