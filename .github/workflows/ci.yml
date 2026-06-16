@@ -29,12 +29,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-# Run JavaScript actions on Node 24 to clear the Node 20 deprecation warnings on
-# checkout/setup-go/upload-artifact/docker actions. Removable once Node 24 is the
-# runner default.
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   test:
     name: vet / build / test
@@ -47,10 +41,10 @@ jobs:
       CGO_ENABLED: 0
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: 1.26.x
           cache: true
@@ -99,7 +93,7 @@ jobs:
 
       - name: Upload coverage profile
         if: always() && runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-profile
           path: coverage.out
@@ -115,10 +109,10 @@ jobs:
       CGO_ENABLED: 0
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: 1.26.x
           cache: true
@@ -160,10 +154,10 @@ jobs:
       matrix:
         service: [ddnet, teeworlds7]
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
       - name: Build ${{ matrix.service }} image (source, cached)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: e2e
           file: e2e/${{ matrix.service }}.Dockerfile
@@ -191,12 +185,12 @@ jobs:
     env:
       COMPOSE_PROJECT: teetui-e2e
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v4
       # Rebuild both images from the warmed gha cache (cache hit → fast) and load
       # them under the tags the compose file references, so `up` skips building.
       - name: Load ddnet image (cached)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: e2e
           file: e2e/ddnet.Dockerfile
@@ -204,7 +198,7 @@ jobs:
           tags: tw-e2e-ddnet:local
           cache-from: type=gha,scope=ddnet
       - name: Load teeworlds7 image (cached)
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: e2e
           file: e2e/teeworlds7.Dockerfile
@@ -246,21 +240,21 @@ jobs:
     # workflow artifacts (§T122/§C38/§V83). The tag→release flow lives in
     # release.yml (goreleaser release → GitHub Release, permanent).
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: 1.26.x
           cache: true
       - name: GoReleaser build (snapshot, CGO_ENABLED=0)
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: '~> v2'
           args: build --snapshot --clean
       - name: Upload binaries
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: teetui-binaries-${{ github.sha }}
           path: dist/**/teetui*
