@@ -39,6 +39,15 @@ Re-impl chillerbot-ux ncurses `terminalui` as Go terminal client on `github.com/
 - C23: CONFIG-FILE-ONLY CLI. teetui takes NO per-setting flags — ONLY one optional config-file arg (`teetui [-config <file>]`). file = teeworlds-style `.cfg`: one `command [args]` per line, `#` comments, executed in order through the SAME console layer as F1 (cvars + `connect`/identity). no file → predefined defaults (⊥ auto-connect → open browser). REMOVE `-server`/`-name`/`-clan`/`-skin`/`-version`/`-connect-timeout`/`-max-fps`/`-log-lines` (+ never-built `-password`/`-no-color`). identity via cvars (`player_name`,`player_clan`); ⊥ `-skin` (dead — terminal tee = `o`, no skins). protocol version ⊥ a global flag: taken from the master/scan entry on a browser/LAN join, or from `connect <addr> [0.6|0.7]` (default 0.6) in the config. (corrects §I.cli flag drift; twclient ⊥ auto-detect, default `packet.Version06`)
 - C24: FREE-LOOK MAP NAV. visual mode ! support a free-look/pan sub-mode — detach camera from local tee, PAN map via arrows OR WASD (tile steps), recenter + exit keys. VIEW-ONLY: while panning ⊥ send aim/move/any tee input (mode-gated, V9/V12). HUD shows panned center tile coords + a "[free-look]" indicator. requires visual ON (entering ensures it); exit → camera re-locks to tee (smoother, T43). pan clamps so view ⊥ run off into garbage; resize/min-size safe (V30/V32). (extends V27 free-view; distinct from `subcell` half-block "detail" render, T46 — RENAME the legend's mislabeled `[V]detail` to its real meaning)
 - C25: CONTEXT LEGEND. input-legend bar (bottom) + `?` help overlay ! be GENERATED from the LIVE keymap (V19 rebinds reflected) + feature actions (DefineAction key/help) — ⊥ hardcoded strings drifting from real bindings. legend = the MOST IMPORTANT commands AVAILABLE in the current context (normal | free-look | browser | input mode) as `[key]label`, priority-ordered; overflow → drop lowest-priority entries to fit width (⊥ overflow row, V30). help overlay = FULL binding list (core actions + every feature action), grouped, always escapable (V17). rebinding a key updates BOTH.
+- C27: SDK DESIGN (research 2026-06-16). NAMES derived from Go stdlib idioms — Effective Go/Pike interface naming (single-method iface = method+`er`: `io.Reader`/`io.Writer`/`fmt.Stringer`), `io.Closer` for resource release, `net/http.Handler` for event receivers — NOT from Caddy (Caddy studied for the self-register MODULE pattern only, C21; ⊥ its `Provisioner`/`CleanerUpper` names). also SOLID interface-segregation + "accept interfaces / return structs". public `feature` SDK !:
+  - SMALL, OPTIONAL capability interfaces discovered by type-assertion (comma-ok), the Go optional-interface idiom (e.g. code checks whether an `io.Reader` is also an `io.Closer`) — ⊥ ONE monolithic mandatory interface. adding a NEW capability = NEW optional interface ⇒ ⊥ break existing features (FORWARD-compatible extension).
+  - `Feature` minimal = IDENTITY only (`Name() string`); init, lifecycle, events all OPTIONAL (asserted).
+  - idiomatic naming: single-method iface = method+`er` (`Reader`/`Closer`/`Stringer`) | `…Handler` (← `net/http.Handler`); ⊥ `…Interface`/`…Events` vague bag; ⊥ stutter/pkg-name redundancy; ONE obvious name per concept.
+  - NAME the capability surface `feature.API` (the teetui-client API given to a feature) — ⊥ `Host` (webserver host/guest framing; teetui = terminal client, ⊥ server), ⊥ `Context` (collides `context.Context`), ⊥ `Client` (collides twclient `client.Client`).
+  - LARGE-interface anti-pattern: `feature.API` COMPOSED from small named sub-interfaces (`ChatSender`/`Logger`/`StateReader`/…); a consumer|handler depends on the MINIMAL sub-surface it needs (V53/ISP), ⊥ a flat opaque bag.
+  - RESOURCE lifecycle: a feature owning goroutines/files/handles ! get a teardown hook — name it `Close()` per `io.Closer` — run on shutdown AND on disable-after-panic, working even after PARTIAL init. today there is NONE (cmdhook spawns procs, warlist/lastping persist) — gap.
+  - SDK stays feature-AGNOSTIC (V53) + action surface stays the safe twclient API (V47); refactor ⊥ change observed behavior (V44).
+- C26: SCALE + REFLOW (reinforces C17 — ALL UI scales w/ terminal size, no exceptions). two concrete gaps: (a) LOG WRAP — a log line wider than the log-band width ! CONTINUE on the next visual row (word-wrap, hard-split a token longer than width), ⊥ silently truncate log text; scroll counts VISUAL (wrapped) rows. (b) FLEX TABLES — overlay table columns (scoreboard name/clan, browser name/gametype/map/…) ! DERIVE from current rect width each render, ⊥ fixed col widths (waste on wide / over-truncate on narrow); narrow → shrink|drop low-priority cols, col sum ≤ width (⊥ overflow, V30). recompute from live size on resize (C17/V50).
 
 ## §I — interfaces
 
@@ -246,6 +255,60 @@ import (
 func main(){ tui.Main() }   // base client provisions all feature.Registered()
 ```
 
+### feature modules (v3 — supersedes the v2 `Events` monolith, C27)
+Research-driven SDK reshape. `Feature` shrinks to IDENTITY; init, lifecycle and
+every event become SMALL OPTIONAL interfaces the core discovers by type assertion
+(Go optional-interface idiom, names from the stdlib `-er` rule + `io.Closer` +
+`net/http.Handler`). Adding a new optional interface later ⊥ break any existing
+feature (forward-compatible). The capability surface is `feature.API` (⊥ `Host` —
+teetui = terminal client, ⊥ server).
+```
+pkg github.com/jxsl13/teetui/feature
+
+type Feature interface { Name() string }            // identity ONLY
+
+// lifecycle — all OPTIONAL, asserted per feature:
+type Initializer interface { Init(API) error }      // declare cvars/actions, look up deps
+type Validator   interface { Validate() error }     // verify config after Init
+type Closer      interface { Close() error }        // release goroutines/files (← io.Closer);
+                                                    //   runs on shutdown + panic-disable; safe
+                                                    //   even after PARTIAL init
+
+// events — small OPTIONAL handlers (idiomatic `…Handler`), implement only what you need;
+// NopFeature is REMOVED (no forced no-op stubs):
+type ConnectHandler   interface { OnConnect(API) }
+type DisconnectHandler interface { OnDisconnect(API, reason string) }
+type ChatHandler      interface { OnChat(API, ChatEvent) (suppress bool) }
+type BroadcastHandler interface { OnBroadcast(API, string) }
+type ServerMsgHandler interface { OnServerMsg(API, string) }
+type KillHandler      interface { OnKill(API, KillEvent) }
+type TickHandler      interface { OnTick(API, client.TickState) }
+type KeyHandler       interface { OnKey(API, Key) (handled bool) }
+
+// API = the teetui-client capability surface, COMPOSED from small named
+// sub-interfaces (ISP) — a handler/consumer may depend on just the slice it needs:
+type ChatSender     interface { SendChat(msg string, team bool) }
+type ActionDoer     interface { Do(client.Action) error; RconLogin(pw string) }
+type Logger         interface { Log(msg string) }
+type StateReader    interface { Roster() []client.PlayerState; Tick() (client.TickState, bool)
+                                PlayerName() string; PlayerClan() string; Server() string }
+type ConfigStore    interface { DefineConfig(name, def, help string); Config(name string) (string, bool) }
+type ActionRegistry interface { DefineAction(name, defKey, help string, run func())
+                                DefineCommand(name, help string, run func(args string) []string) }
+type UIRegistry     interface { AddStatusField(func() string); AddNameStyle(func(name, clan string) (Style, bool))
+                                AddSendChatFilter(func(msg string, team bool) (out string, send bool)) }
+type ServiceRegistry interface { Provide(name string, svc any); Lookup(name string) (any, bool) }  // V53
+type Paths          interface { DataPath(name string) string }
+type API interface { ChatSender; ActionDoer; Logger; StateReader; ConfigStore
+                     ActionRegistry; UIRegistry; ServiceRegistry; Paths }
+
+// NopAPI (renamed from NopHost) — no-op API to embed in tests. core Fire*/lifecycle
+// dispatch type-asserts each registered Feature to the handler/lifecycle interface
+// and skips those it does not implement; dispatch panic-isolated (V40/V47).
+```
+Migration: every `features/*` drops `feature.NopFeature` + implements only its
+handlers (+ `Initializer` if it needs setup). behavior identical (V44). main.go unchanged.
+
 ## §V — invariants
 
 - V1: all server comms via `twclient` pub API only. ⊥ import net6/net7/network/packer from teetui. (C2)
@@ -305,6 +368,12 @@ func main(){ tui.Main() }   // base client provisions all feature.Registered()
 - V55: input-legend GENERATED from live keymap + feature actions EACH render — context-available important cmds as `[key]label`, current bindings (V19 rebinds reflected), priority-ordered; ⊥ hardcoded; width overflow → drop lowest-priority entries (⊥ draw past bounds, V30). context-aware: free-look→pan/recenter/exit, normal→core cmds, browser/input-mode→that mode's keys. (C25)
 - V56: `?` help overlay lists ALL bindings (core actions + every feature DefineAction key+help) sourced from keymap/registry, ⊥ stale hardcoded; grouped; always escapable from any mode (V17); clamps to screen (V30). rebinding a key updates BOTH legend (V55) + help. (C25)
 - V57: JOIN key — `features/team` DefineAction (default `j`, OWNED by the feature per V46) → `Host.Do(client.ActSetTeam{Team:0})` (V12/V52, ⊥ raw packet) + logs outcome. same effect as console `join`/`team game`, different trigger. works from spectator or in-game; ⊥ require leaving free-look. (← user "join with a key"; extends V52)
+- V58: overlay TABLE columns flex with rect width each render — scoreboard name/clan + browser name/gametype/map/plrs/ver derived from current width, ⊥ fixed; narrow → shrink|drop low-priority cols (clan first, then gametype/ver), wide → grow name; col sum ≤ width, ⊥ overflow (V30/V6). recompute on resize (V50). (C26, extends V30/V31)
+- V60: event handling = SMALL OPTIONAL interfaces (`ChatHandler`/`TickHandler`/`KeyHandler`/…), type-asserted per feature — ⊥ monolithic `Events`. a feature implements ONLY the handlers it needs (⊥ forced no-op stubs, ⊥ `NopFeature`). `Fire*` asserts each registered feature to the handler iface; absent → skipped. adding a NEW optional handler iface ⊥ break existing features (forward-compat). (C27)
+- V61: idiomatic naming — public SDK identifiers follow Go STDLIB conventions (⊥ Caddy names): single-method iface = method+`er` (`io.Reader`/`io.Closer`/`fmt.Stringer`) | `…Handler` (`net/http.Handler`); lifecycle release = `Close()`/`Closer` (`io.Closer`), ⊥ `Cleanup`/`CleanerUpper`; setup = `Init()`/`Initializer`, ⊥ `Provision`/`Provisioner`. ⊥ `…Interface`/vague `Events` bag; ⊥ pkg-name stutter; ONE obvious name per concept. capability surface = `feature.API` (⊥ `Host`: terminal client, ⊥ webserver framing). (C27)
+- V62: feature LIFECYCLE optional + safe — `Initializer`(Init)|`Validator`(Validate)|`Closer`(Close, ← `io.Closer`). Validate runs after Init; Close runs on shutdown AND when a feature is disabled after a panic (V47), MUST work after PARTIAL init, ⊥ panic/leak; all dispatch panic-isolated (V40/V47). (C27)
+- V63: `feature.API` COMPOSED from small named capability sub-interfaces (`ChatSender`/`ActionDoer`/`Logger`/`StateReader`/`ConfigStore`/`ActionRegistry`/`UIRegistry`/`ServiceRegistry`/`Paths`), `API` embeds them — ⊥ flat opaque bag; a consumer/handler may depend on the MINIMAL sub-surface (ISP, V53); action surface stays the safe twclient API (V47). (C27)
+- V59: log lines WRAP to the log-band width — a line wider than width continues on the next visual row(s): word-wrap on spaces, hard-split any single token longer than width; ⊥ silent truncation of log text (V6 keeps wide glyphs intact). `Log.View(width,height)` returns VISUAL (wrapped) rows; scroll offset counts visual rows; recompute on resize (C17/V50). (C26)
 
 ## §T — tasks
 
@@ -406,6 +475,11 @@ T94|x|free-look map-pan sub-mode (§C24): add `actFreeLook` (default `G`, rebind
 T95|x|dynamic context legend (§C25): replace hardcoded drawInput legend (`internal/tui/app.go:1371`) w/ generated legend — core builds `[]legendItem{key,label,priority,available(ctx)}` from the live Keymap (tokensFor each action) + feature actions (host featAct* + help); render context-available items as `[key]label` priority-ordered, truncate to `r.W` dropping lowest priority (⊥ overflow). reflect rebinds (V19). fix mislabeled `[V]detail`. test: legend reflects a rebind, truncation ⊥ exceed width, context switch normal vs free-look vs browser shows different sets|C25,V55,V19,V30,I.windows
 T96|x|generated help overlay (§C25): build `helpLines` from Keymap + feature DefineAction (key+help) instead of the hardcoded slice (`internal/tui/help.go`); FULL binding list grouped (core / movement / input / feature); keep escapable (V17) + screen-clamp (V30). add core enumeration of feature actions (key+help) for legend+help to share. test: help lists a rebound key + a registered feature action; still escapable from each mode|C25,V56,V17,V19,V30
 T97|x|join-the-game key: `features/team` add DefineAction("join_game","j","join the game (team 0)") → Host.Do(client.ActSetTeam{Team:0}) + Host.Log outcome (reuse setTeam path); key-trigger for the existing console `join`. legend/help pick it up automatically (§T95/§T96). update README keybinds + team pkg doc. test: action fires ActSetTeam{0} via a fake Host (NopHost override)|V57,V52,V12,V46,I.keybinds
+T98|x|log line wrap: new `wrapLine(s string, width int) []string` (word-wrap on spaces + hard-split a token wider than width, runewidth-aware V6); `Log.View(width,height int)` wraps every logical line to width, flattens to visual rows, windows the last `height` honoring offset (offset = VISUAL rows). update render loop `internal/tui/app.go:1304` to pass `lay.Log.W`; migrate `View(int)` callers/tests (`models_test.go`). ⊥ truncate log text. test: wrapLine (short/multi-word/overlong-token/wide-rune), View windows wrapped rows, scroll on visual rows|C26,V59,V6,V50,I.windows
+T99|.|responsive overlay tables: scoreboard `scoreboardLine`/`DrawScoreboard` (`internal/tui/scoreboard.go`) name+clan cols flex from rect `r.W` (drop `clan` when too narrow, then shrink `name`; grow `name` when wide), ⊥ fixed `nameColW`/`clanColW`; browser header+rows (`internal/tui/browser.go` `%-30s %-10s %-14s …`) flex from `w` (shrink|drop gametype/ver/map first). col sum ≤ width (V30/V6). update `scoreboard_test.go`. test: scoreboard cols adapt (narrow drops clan, wide grows name); browser line width ≤ w at several sizes|C26,V58,V30,V6,I.windows
+T100|.|split monolithic `feature.Events` → small OPTIONAL handler ifaces (`ConnectHandler` `DisconnectHandler` `ChatHandler` `BroadcastHandler` `ServerMsgHandler` `KillHandler` `TickHandler` `KeyHandler`); `Feature`=`Name()` + optional `Initializer{Init(API) error}` (rename method `Provision`→`Init`); `Fire*` + the init dispatch (rename `ProvisionAll`→`InitAll`) type-assert each registered feature (skip absent); REMOVE `NopFeature`; migrate all `features/*` to implement only their handlers. ⊥ behavior change. test: feature w/ only ChatHandler gets OnChat ⊥ OnTick; a new optional iface ⊥ break existing; suppress/handled composition preserved (V39)|C27,V60,V61,V44,V47,I.feature
+T101|.|feature LIFECYCLE — add optional `Validator{Validate() error}` + `Closer{Close() error}` (← `io.Closer`, ⊥ `CleanerUpper`); core runs Validate after Init (disable+log on err), Close on shutdown (`App.Stop`) + on panic-disable, even after partial init; panic-isolated (V40). wire `features/cmdhook` Close (stop spawned procs/goroutines) + any file/handle owner. test: Close called on shutdown + after an Init panic; partial-init Close safe; Validate err disables feature|C27,V62,V40,V47,I.feature
+T102|.|RENAME `Host`→`feature.API` + compose it from sub-interfaces (`ChatSender` `ActionDoer` `Logger` `StateReader` `ConfigStore` `ActionRegistry` `UIRegistry` `ServiceRegistry` `Paths`), `API` embeds them; rename `NopHost`→`NopAPI` + core `appHost`→`appAPI` (internal); apply V61 naming (drop `Events`, ⊥ webserver `Host`). update every `features/*` signature (`Init`/handlers take `feature.API`), `feature` pkg doc, README §I.feature, in-repo example. ⊥ behavior change (V44); import isolation intact (V43). test: `NopAPI` satisfies `API`; minimal sub-interface assertions compile (consume a `ChatSender` alone)|C27,V63,V61,V44,V43,I.feature
 
 ## §B — bugs
 

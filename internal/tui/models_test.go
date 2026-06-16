@@ -85,19 +85,19 @@ func TestLogScroll(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		l.Addf(tcell.StyleDefault, "L%d", i)
 	}
-	if v := l.View(3); len(v) != 3 || v[2].Text != "L9" {
+	if v := l.View(80, 3); len(v) != 3 || v[2].Text != "L9" {
 		t.Fatalf("tail view = %v", v)
 	}
 	l.ScrollUp(2)
-	if v := l.View(3); v[2].Text != "L7" {
+	if v := l.View(80, 3); v[2].Text != "L7" {
 		t.Errorf("scrolled view bottom = %q want L7", v[2].Text)
 	}
 	l.ScrollUp(1000) // clamp
-	if v := l.View(3); v[0].Text != "L0" {
+	if v := l.View(80, 3); v[0].Text != "L0" {
 		t.Errorf("top view = %q want L0", v[0].Text)
 	}
 	l.FollowTail()
-	if v := l.View(3); v[2].Text != "L9" {
+	if v := l.View(80, 3); v[2].Text != "L9" {
 		t.Errorf("follow tail = %q want L9", v[2].Text)
 	}
 }

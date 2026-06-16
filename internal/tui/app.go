@@ -1301,7 +1301,7 @@ func (a *App) draw() {
 		}
 	}
 
-	for i, ln := range a.log.View(lay.Log.H) {
+	for i, ln := range a.log.View(lay.Log.W, lay.Log.H) {
 		drawStr(a.scr, lay.Log.X, lay.Log.Y+i, lay.Log.W, ln.Style, ln.Text)
 	}
 
