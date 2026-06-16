@@ -491,6 +491,12 @@ func (a *App) handleNormal(ev *tcell.EventKey) {
 	if a.freeLook && a.handleFreeLook(ev) {
 		return
 	}
+	// Movement/aim router (§T104/§V66): WASD + arrows drive jump/left/stop/right
+	// or cardinal aim depending on cl_move_keys. Runs before the keymap so the
+	// selected set is movement and the other set is aim.
+	if a.handleMoveAim(ev) {
+		return
+	}
 	// Discrete named commands resolve through the rebindable keymap (§V19/§T42).
 	if act, ok := a.keymap.Lookup(ev.Key(), ev.Rune()); ok {
 		a.doAction(act)
@@ -502,9 +508,8 @@ func (a *App) handleNormal(ev *tcell.EventKey) {
 			return
 		}
 	}
-	// Continuous/parametric controls stay direct: log scroll, weapon select
-	// (1..6) and keyboard aim (arrows). These map a group of keys to one
-	// parametric handler rather than a single named action.
+	// Continuous/parametric controls stay direct: log scroll + weapon select
+	// (1..6). Movement/aim (WASD/arrows) is handled by handleMoveAim above.
 	switch ev.Key() {
 	case tcell.KeyPgUp:
 		a.log.ScrollUp(10)
@@ -512,20 +517,8 @@ func (a *App) handleNormal(ev *tcell.EventKey) {
 	case tcell.KeyPgDn:
 		a.log.ScrollDown(10)
 		return
-	case tcell.KeyUp:
-		a.input.SetAim(0, -aimReach)
-		return
-	case tcell.KeyDown:
-		a.input.SetAim(0, aimReach)
-		return
-	case tcell.KeyLeft:
-		a.input.SetAim(-aimReach, 0)
-		return
-	case tcell.KeyRight:
-		a.input.SetAim(aimReach, 0)
-		return
 	}
-	if a.freeLook { // no tee input (incl. weapon select) while panning (§V54)
+	if a.freeLook { // view-only: no weapon select while panning (§V54)
 		return
 	}
 	if w, ok := weaponForRune(ev.Rune()); ok {

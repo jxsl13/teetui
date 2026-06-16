@@ -96,6 +96,7 @@ feature module).
 | `cl_connect_timeout` | `30` | core | Handshake timeout in **seconds** (covers login + map download). The watchdog only aborts a *still-connecting* session, never a live one. |
 | `cl_max_fps` | `60` | core | Cap on render repaints per second; `0` = unlimited (draw on every event). Pure render throttle — the network tick stays 50 Hz. |
 | `cl_log_lines` | `10` | core | Number of log rows shown beneath the visual when the game view is on. Hard-capped to half the terminal height; with the visual off, logs fill the whole body. |
+| `cl_move_keys` | `wasd` | core | Which key set moves the tee: `wasd` (then arrows aim) or `arrows` (then `WASD` aim). Lets left-handed players move with one hand and aim with the other. |
 | `cl_silent_chat_commands` | `1` | warlist | Apply `!war`/`!peace`/… locally **without** sending the command line to the server. Set `0` to also send it. |
 | `cl_war_list_auto_reload` | `10` | warlist | Reload `warlist.txt` every N **seconds** if it changed on disk (live external edits). `0` = off. |
 | `cl_show_last_ping` | `0` | lastping | Show the most recent chat line that pinged you in the status bar. |
@@ -201,14 +202,14 @@ bindings.
 | `H` | reply to last ping *(replytoping feature)* |
 | `j` | join the game (team 0) *(team feature)* |
 | `R` | reconnect |
-| `a` / `d` / `s` | move left / right / stop |
+| `WASD` / arrows | move (jump / left / stop / right) — selectable, see `cl_move_keys`; the other set aims |
 | `space` | jump |
 | `h` | toggle hook |
 | `k` / `K` | self-kill |
 | `e` | emote |
 | `1`–`6` | select weapon |
 | `f` | fire |
-| arrow keys / `WASD` | aim (cardinal); pan the map while free-look (`G`) is on |
+| the non-movement set (arrows or `WASD`) | aim (cardinal); both sets pan the map while free-look (`G`) is on |
 | `F5` / `F6` | vote yes / no |
 | `PgUp` / `PgDn` / wheel | scroll log |
 | `Ctrl-U` / `Ctrl-K` / `Ctrl-W` | kill line-before / -after / word (input) |

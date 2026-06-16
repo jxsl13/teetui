@@ -43,12 +43,11 @@ func (a *App) helpLines() []string {
 			{kb(actFreeLook), "free-look map-pan (WASD/arrows pan, Esc exit)"},
 		}},
 		{"movement", []row{
-			{kb(actMoveLeft) + " / " + kb(actMoveRight) + " / " + kb(actMoveStop), "move left / right / stop"},
+			{"WASD / arrows", "move (jump/left/stop/right); the other set aims — see cl_move_keys"},
 			{kb(actJump), "jump"},
 			{kb(actHook), "hook"},
 			{kb(actFire), "fire"},
 			{"1-6", "select weapon"},
-			{"↑↓←→", "aim (cardinal)"},
 			{kb(actKill), "self-kill"},
 			{kb(actEmote), "emote"},
 		}},

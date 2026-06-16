@@ -91,6 +91,72 @@ func (a *App) panBy(dx, dy int) {
 	a.panY = clampInt(cy+a.panY, 0, st.Map.Height()-1) - cy
 }
 
+// handleMoveAim routes the WASD + arrow keys to tee movement or cardinal aim per
+// the cl_move_keys cvar (§T104/§V66): the selected set moves (jump/left/stop/
+// right), the other aims. Returns true if it consumed the key. Not reached in
+// free-look (that gate runs first, V54). Movement is sticky (terminal has no
+// key-release) and goes through the InputController only (V12).
+func (a *App) handleMoveAim(ev *tcell.EventKey) bool {
+	const (
+		dirUp = iota
+		dirLeft
+		dirDown
+		dirRight
+	)
+	dir := -1
+	isWASD := false
+	switch ev.Key() {
+	case tcell.KeyUp:
+		dir = dirUp
+	case tcell.KeyLeft:
+		dir = dirLeft
+	case tcell.KeyDown:
+		dir = dirDown
+	case tcell.KeyRight:
+		dir = dirRight
+	case tcell.KeyRune:
+		switch ev.Rune() {
+		case 'w', 'W':
+			dir, isWASD = dirUp, true
+		case 'a', 'A':
+			dir, isWASD = dirLeft, true
+		case 's', 'S':
+			dir, isWASD = dirDown, true
+		case 'd', 'D':
+			dir, isWASD = dirRight, true
+		}
+	}
+	if dir < 0 {
+		return false
+	}
+	wasdMoves := a.cfgSnap().MoveKeys != "arrows"
+	isMove := isWASD == wasdMoves // WASD-key in wasd mode, or arrow-key in arrows mode
+	if isMove {
+		switch dir {
+		case dirUp:
+			a.input.SetJump(true)
+		case dirLeft:
+			a.input.SetDirection(-1)
+		case dirDown:
+			a.input.SetDirection(0)
+		case dirRight:
+			a.input.SetDirection(1)
+		}
+	} else {
+		switch dir {
+		case dirUp:
+			a.input.SetAim(0, -aimReach)
+		case dirLeft:
+			a.input.SetAim(-aimReach, 0)
+		case dirDown:
+			a.input.SetAim(0, aimReach)
+		case dirRight:
+			a.input.SetAim(aimReach, 0)
+		}
+	}
+	return true
+}
+
 // clampInt clamps v to [lo,hi]; if hi<lo it returns lo.
 func clampInt(v, lo, hi int) int {
 	if hi < lo {

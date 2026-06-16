@@ -123,9 +123,9 @@ func DefaultKeymap() *Keymap {
 	k.bindKey(tcell.KeyF5, actVoteYes)
 	k.bindKey(tcell.KeyF6, actVoteNo)
 	k.bindRune('h', actHook)
-	k.bindRune('a', actMoveLeft)
-	k.bindRune('d', actMoveRight)
-	k.bindRune('s', actMoveStop)
+	// Movement (WASD/arrows) is routed by the cl_move_keys cvar (§T104), not the
+	// static keymap — so left-/right-handed players swap move↔aim. Space still
+	// jumps via the keymap.
 	k.bindRune(' ', actJump)
 	k.bindRune('f', actFire)
 	k.bindRune('G', actFreeLook) // §T94 free-look map-pan toggle (rebindable)

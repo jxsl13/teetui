@@ -17,6 +17,7 @@ type Config struct {
 	PlayerName     string // identity (§T89, player_name)
 	PlayerClan     string // identity (§T89, player_clan)
 	ConnectTimeout int    // handshake timeout seconds (§T89, cl_connect_timeout)
+	MoveKeys       string // "wasd" | "arrows": which set moves; the other aims (§T104/§V66)
 }
 
 // NewConfig returns the default configuration. Feature-owned cvars are declared
@@ -28,8 +29,17 @@ func NewConfig() *Config {
 		LogLines:       DefaultLogLines, // log-band rows when visual on (§T88)
 		PlayerName:     "nameless tee",
 		PlayerClan:     "",
-		ConnectTimeout: 30, // seconds (= DefaultConnectTimeout)
+		ConnectTimeout: 30,     // seconds (= DefaultConnectTimeout)
+		MoveKeys:       "wasd", // WASD move, arrows aim (§T104)
 	}
+}
+
+// normMoveKeys clamps the move-keys cvar to a valid set ("wasd" default).
+func normMoveKeys(v string) string {
+	if strings.EqualFold(strings.TrimSpace(v), "arrows") {
+		return "arrows"
+	}
+	return "wasd"
 }
 
 // cvar is one console-settable config variable: a name, one line of help text,
@@ -58,6 +68,9 @@ var cvars = []cvar{
 	{"cl_connect_timeout", "handshake timeout in seconds (login + map download)",
 		func(c *Config) string { return itoa(c.ConnectTimeout) },
 		func(c *Config, v string) { c.ConnectTimeout = clampAtoi(v, 1, 600) }},
+	{"cl_move_keys", "which key set moves the tee: wasd (arrows aim) | arrows (wasd aim)",
+		func(c *Config) string { return c.MoveKeys },
+		func(c *Config, v string) { c.MoveKeys = normMoveKeys(v) }},
 }
 
 // findCvar returns the cvar named name, or nil.
