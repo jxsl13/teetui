@@ -64,4 +64,16 @@ func TestCmdHookExec(t *testing.T) {
 		t.Errorf("hook say not applied: %v", host.chats)
 	}
 	h.OnKill(host, feature.KillEvent{Killer: 1, Victim: 2}) // no script → no-op
+
+	// §T101/§V62: after Close the bridge stops spawning hook processes.
+	if err := h.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	host2 := &recHost{}
+	if h.OnChat(host2, feature.ChatEvent{Msg: "ping", Name: "bob"}) {
+		t.Error("closed cmdhook should not run the hook")
+	}
+	if len(host2.chats) != 0 {
+		t.Errorf("closed cmdhook still spawned: %v", host2.chats)
+	}
 }

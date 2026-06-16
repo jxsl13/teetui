@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/jxsl13/teetui/feature"
@@ -24,9 +25,17 @@ import (
 type cmdHook struct {
 	dir     string
 	timeout time.Duration
+	closed  atomic.Bool // set on Close: stop spawning hook processes (§T101/§V62)
 }
 
 func (*cmdHook) Name() string { return "cmdhook" }
+
+// Close stops the bridge from spawning any further hook processes during/after
+// shutdown (§T101/§V62). Idempotent and safe even if Init never ran.
+func (h *cmdHook) Close() error {
+	h.closed.Store(true)
+	return nil
+}
 
 func (h *cmdHook) Init(host feature.Host) error {
 	h.timeout = 2 * time.Second
@@ -40,7 +49,7 @@ func (h *cmdHook) Init(host feature.Host) error {
 // run executes the hook script for event (if present+executable), feeding payload
 // as JSON, and applies the printed actions via host. Failures are isolated.
 func (h *cmdHook) run(event string, payload any, host feature.Host) (suppress bool) {
-	if h.dir == "" {
+	if h.dir == "" || h.closed.Load() {
 		return false
 	}
 	path := filepath.Join(h.dir, event)

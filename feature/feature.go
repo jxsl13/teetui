@@ -99,9 +99,23 @@ type Feature interface {
 
 // Initializer is the optional one-time setup hook: declare cvars/actions/status
 // fields and look up services. Named per the Go -er convention, not Caddy's
-// "Provisioner" (§C27/§V61). (Validator/Closer lifecycle hooks: §T101.)
+// "Provisioner" (§C27/§V61).
 type Initializer interface {
 	Init(Host) error
+}
+
+// Validator is the optional post-init check (§V62): Validate runs after Init and
+// a non-nil error disables the feature (logged), leaving the rest running.
+type Validator interface {
+	Validate() error
+}
+
+// Closer releases a feature's resources — goroutines, files, handles — named per
+// io.Closer, not Caddy's "CleanerUpper" (§C27/§V61/§V62). Close runs on shutdown
+// and when a feature is disabled after a panic; it must be safe even after a
+// PARTIAL Init and is called at most once per feature.
+type Closer interface {
+	Close() error
 }
 
 // Event-handler interfaces — all OPTIONAL, named `…Handler` after net/http.Handler

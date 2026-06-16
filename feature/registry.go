@@ -9,6 +9,7 @@ import (
 type entry struct {
 	f        Feature
 	disabled bool
+	closed   bool // Close already run (idempotent teardown, §V62)
 }
 
 var (
@@ -80,10 +81,50 @@ func safeCall(e *entry, host Host, what string, fn func() bool) (res bool) {
 			if host != nil {
 				host.Log("feature " + e.f.Name() + " panicked in " + what + " and was disabled")
 			}
+			closeFeature(e, host) // release resources of the disabled feature (§V62)
 			res = false
 		}
 	}()
 	return fn()
+}
+
+// closeFeature runs a feature's optional Close once (idempotent, §V62), recovering
+// any panic so teardown of one feature never affects another or the shutdown path.
+func closeFeature(e *entry, host Host) (err error) {
+	mu.Lock()
+	if e.closed {
+		mu.Unlock()
+		return nil
+	}
+	e.closed = true
+	mu.Unlock()
+	c, ok := e.f.(Closer)
+	if !ok {
+		return nil
+	}
+	defer func() {
+		if rec := recover(); rec != nil && host != nil {
+			host.Log("feature " + e.f.Name() + " panicked in Close")
+		}
+	}()
+	return c.Close()
+}
+
+// CloseAll runs Close on every registered feature that implements Closer — on
+// shutdown — INCLUDING disabled ones, since a feature disabled after a partial
+// Init may still hold resources (§V62). Idempotent per feature.
+func CloseAll(host Host) []error {
+	mu.Lock()
+	all := make([]*entry, len(features))
+	copy(all, features)
+	mu.Unlock()
+	var errs []error
+	for _, e := range all {
+		if err := closeFeature(e, host); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errs
 }
 
 // InitAll runs the optional Init hook of every registered feature once, in
@@ -92,16 +133,33 @@ func safeCall(e *entry, host Host, what string, fn func() bool) (res bool) {
 func InitAll(host Host) []error {
 	var errs []error
 	for _, e := range snapshot() {
-		init, ok := e.f.(Initializer)
-		if !ok {
+		init, hasInit := e.f.(Initializer)
+		validator, hasVal := e.f.(Validator)
+		if !hasInit && !hasVal {
 			continue
 		}
 		safeCall(e, host, "Init", func() bool {
-			if err := init.Init(host); err != nil {
-				mu.Lock()
-				e.disabled = true
-				mu.Unlock()
-				errs = append(errs, err)
+			if hasInit {
+				if err := init.Init(host); err != nil {
+					mu.Lock()
+					e.disabled = true
+					mu.Unlock()
+					errs = append(errs, err)
+					return false
+				}
+			}
+			// Validate runs after a successful Init; failure disables the feature
+			// (§V62) but the others keep running.
+			if hasVal {
+				if err := validator.Validate(); err != nil {
+					mu.Lock()
+					e.disabled = true
+					mu.Unlock()
+					if host != nil {
+						host.Log("feature " + e.f.Name() + " failed validation: " + err.Error())
+					}
+					errs = append(errs, err)
+				}
 			}
 			return false
 		})

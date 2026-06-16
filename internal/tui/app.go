@@ -269,6 +269,7 @@ func (a *App) Stop() {
 	if a.frontendCancel != nil {
 		a.frontendCancel()
 	}
+	feature.CloseAll(a.host()) // release feature resources on shutdown (§T101/§V62)
 	a.saveHistory()
 	select {
 	case <-a.quit:
