@@ -35,6 +35,12 @@ func (a *App) DefaultDialer(name, clan, skin string) func(s *session, addr strin
 			client.WithPrediction(true),
 			client.WithObserver(s.state),
 			client.WithController(s.input),
+			// Map-download progress → session counters → progress bar (§T128/§V88).
+			client.WithMapDownloadProgress(func(received, total int) {
+				s.mapRecv.Store(int64(received))
+				s.mapTotal.Store(int64(total))
+				a.wake()
+			}),
 		)
 		c.OnChat(func(cc *client.Client, e packet.EventChat) {
 			if a.IsOwnEcho(e.ClientID, e.Msg) {

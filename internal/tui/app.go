@@ -1220,6 +1220,8 @@ func (a *App) joinSession(s *session, addr string, ver packet.Version, isDummy b
 		_ = old.Close()
 	}
 	s.state.Clear() // fresh slate: ⊥ render the previous session's map (§T117/§V79)
+	s.mapRecv.Store(0)
+	s.mapTotal.Store(0) // reset map-download progress (§T128)
 	s.connected.Store(false)
 	s.joining.Store(true) // handshake in flight → show "connecting" (§B9)
 	s.server = addr
@@ -1406,7 +1408,11 @@ func (a *App) draw() {
 		// connecting / map-download indicator over the game window (§T33). Only
 		// when actually connecting — idle (never joined) shows no spinner (§B9).
 		if !a.cur().connected.Load() && a.connecting() {
-			drawStr(a.scr, lay.Game.X, lay.Game.Y, lay.Game.W, StyleSystem, connectingLine(a.drawFrame))
+			line := connectingLine(a.drawFrame) // indeterminate spinner by default
+			if p, ok := a.mapDownloadLine(); ok {
+				line = p // real % once twclient reports map-download progress (§T128/§V88)
+			}
+			drawStr(a.scr, lay.Game.X, lay.Game.Y, lay.Game.W, StyleSystem, line)
 		}
 	}
 

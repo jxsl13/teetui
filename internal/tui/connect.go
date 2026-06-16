@@ -7,6 +7,35 @@ import (
 	"github.com/jxsl13/twclient/packet"
 )
 
+// mapDownloadLine returns the map-download progress line for the active session
+// while a download is in flight (§T128/§V88), and false when there is no progress
+// to show yet (total==0 → fall back to the indeterminate spinner).
+func (a *App) mapDownloadLine() (string, bool) {
+	s := a.cur()
+	total := s.mapTotal.Load()
+	if total <= 0 {
+		return "", false
+	}
+	recv := s.mapRecv.Load()
+	pct := recv * 100 / total
+	if pct > 100 {
+		pct = 100
+	}
+	return fmt.Sprintf(" ↓ downloading map %d%% (%s / %s) ", pct, humanBytes(recv), humanBytes(total)), true
+}
+
+// humanBytes formats a byte count compactly (B/KB/MB).
+func humanBytes(n int64) string {
+	switch {
+	case n >= 1<<20:
+		return fmt.Sprintf("%.1f MB", float64(n)/(1<<20))
+	case n >= 1<<10:
+		return fmt.Sprintf("%.0f KB", float64(n)/(1<<10))
+	default:
+		return fmt.Sprintf("%d B", n)
+	}
+}
+
 // versionLabel renders a protocol version as its dotted user-facing string
 // (matching the -version flag): "0.6", "0.7", or the raw number otherwise.
 func versionLabel(ver packet.Version) string {

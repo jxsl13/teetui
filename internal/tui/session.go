@@ -24,7 +24,9 @@ type session struct {
 	name        string // label shown in the follow list
 	connected   atomic.Bool
 	joining     atomic.Bool
-	userClosing atomic.Bool // user-initiated close: suppress auto-reconnect (§B16/§V84)
+	userClosing atomic.Bool  // user-initiated close: suppress auto-reconnect (§B16/§V84)
+	mapRecv     atomic.Int64 // map-download bytes received (§T128/§V88)
+	mapTotal    atomic.Int64 // map size; 0 = unknown/no progress yet
 }
 
 // newSession builds a session with its own State + InputController, wiring the
