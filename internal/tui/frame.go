@@ -6,6 +6,33 @@ import "time"
 // means unlimited (draw on every event, today's behavior) (§T74/§V42).
 const DefaultMaxFPS = 60
 
+// DefaultViewportMinFPS is the default viewport-redraw FLOOR: ≥1 complete
+// redraw/sec of the ingame visual viewport while connected, even without new
+// ticks/events (§T130/§V90/§C41). 0 disables (pure event/tick-driven).
+const DefaultViewportMinFPS = 1
+
+// viewportInterval converts the viewport-min-fps floor to the heartbeat spacing,
+// clamped by the max-fps ceiling: a floor cannot redraw faster than the cap
+// allows (§C41/§V90). minFPS<=0 → 0 (disabled). When maxFPS>0 the effective rate
+// is min(minFPS, maxFPS).
+func viewportInterval(minFPS, maxFPS int) time.Duration {
+	if minFPS <= 0 {
+		return 0
+	}
+	if maxFPS > 0 && minFPS > maxFPS {
+		minFPS = maxFPS
+	}
+	return time.Second / time.Duration(minFPS)
+}
+
+// heartbeatDue reports whether the viewport floor heartbeat must force a
+// complete redraw now: only while connected + visual, the floor enabled
+// (interval>0), and no draw happened within the interval (suppressed when
+// tick/event draws already met the rate, so no double-draw) (§V90).
+func heartbeatDue(now, last time.Time, interval time.Duration, connected, visual bool) bool {
+	return interval > 0 && connected && visual && now.Sub(last) >= interval
+}
+
 // fpsInterval converts a frames-per-second cap to the minimum spacing between
 // repaints. fps <= 0 returns 0, meaning "no cap" (§C20).
 func fpsInterval(fps int) time.Duration {

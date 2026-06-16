@@ -73,7 +73,8 @@ type App struct {
 	escMenu    escMenu   // DDNet-style overlay action bar (§T111/§V74)
 	scoreboard bool
 	hookOn     bool
-	drawFrame  int // advances each redraw; drives the connecting spinner (§T33)
+	drawFrame  int  // advances each redraw; drives the connecting spinner (§T33)
+	forceSync  bool // next present() does a full scr.Sync (viewport floor, §T130/§V90)
 
 	browser *Browser
 	// dialer builds a client bound to a given session's Observer/Controller, with
@@ -412,6 +413,20 @@ func (a *App) Run() {
 		}
 	}
 
+	// Viewport floor (§T130/§V90/§C41): a heartbeat that forces a COMPLETE viewport
+	// repaint at least cl_viewport_min_fps/sec while connected + visual, even with
+	// no new ticks/events. Suppressed when a recent draw already met the rate
+	// (heartbeatDue checks now-lastDraw), so event/tick-driven frames don't get
+	// doubled; capped by cl_max_fps (viewportInterval). When disabled/idle it polls
+	// at 1s (negligible) so a live cvar re-enable is picked up promptly.
+	nextHB := func() time.Duration {
+		if iv := viewportInterval(a.cfg.ViewportMinFPS, a.cfg.MaxFPS); iv > 0 {
+			return iv
+		}
+		return time.Second
+	}
+	heartbeat := time.NewTimer(nextHB())
+
 	drawNow() // initial frame
 	for {
 		select {
@@ -427,6 +442,13 @@ func (a *App) Run() {
 			if pending {
 				drawNow()
 			}
+		case <-heartbeat.C:
+			iv := viewportInterval(a.cfg.ViewportMinFPS, a.cfg.MaxFPS)
+			if heartbeatDue(time.Now(), a.limiter.last, iv, a.cur().connected.Load(), a.visual) {
+				a.forceSync = true // complete viewport repaint, bypass cell-diff (§V90)
+				drawNow()
+			}
+			heartbeat.Reset(nextHB())
 		}
 	}
 }
@@ -1363,6 +1385,18 @@ func (a *App) modeLabel() string {
 	}
 }
 
+// present flushes the frame. Normally a cell-diff flush (scr.Show); when the
+// viewport floor heartbeat asked for a complete repaint it does a full scr.Sync
+// once, then clears the flag (§T130/§V90).
+func (a *App) present() {
+	if a.forceSync {
+		a.forceSync = false
+		a.scr.Sync()
+		return
+	}
+	a.scr.Show()
+}
+
 func (a *App) draw() {
 	a.scr.Clear()
 	a.drawFrame++
@@ -1372,7 +1406,7 @@ func (a *App) draw() {
 	// than garbling the layout; growing back restores the full UI (§V32/§C17).
 	if tooSmall(w, h) {
 		drawTooSmall(a.scr, w, h)
-		a.scr.Show()
+		a.present()
 		return
 	}
 
@@ -1384,7 +1418,7 @@ func (a *App) draw() {
 		if popup.active() {
 			drawPopup(a.scr, w, h, popup)
 		}
-		a.scr.Show()
+		a.present()
 		return
 	}
 
@@ -1444,7 +1478,7 @@ func (a *App) draw() {
 	}
 	a.drawBroadcast(w, h) // transient server-broadcast overlay (§T121/§V82)
 	a.drawEscMenu(w)      // top overlay action bar (§T111/§V74)
-	a.scr.Show()
+	a.present()
 }
 
 // drawScene renders the game view with a smoothed camera (§T43). It computes the

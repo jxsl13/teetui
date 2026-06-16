@@ -13,6 +13,7 @@ import (
 // teetui is an interactive client, not a headless bot.
 type Config struct {
 	MaxFPS         int    // cap render repaints/sec; 0=unlimited (§T74)
+	ViewportMinFPS int    // FLOOR: min complete viewport redraws/sec; 0=off (§T130/§V90)
 	LogLines       int    // log-band rows when the visual is on (§T88)
 	PlayerName     string // identity (§T89, player_name)
 	PlayerClan     string // identity (§T89, player_clan)
@@ -26,8 +27,9 @@ type Config struct {
 // settings, all settable from a config file or the console (§C23).
 func NewConfig() *Config {
 	return &Config{
-		MaxFPS:         DefaultMaxFPS,   // cap repaints (§T74); 0 = unlimited
-		LogLines:       DefaultLogLines, // log-band rows when visual on (§T88)
+		MaxFPS:         DefaultMaxFPS,         // cap repaints (§T74); 0 = unlimited
+		ViewportMinFPS: DefaultViewportMinFPS, // viewport redraw FLOOR (§T130); 0 = off
+		LogLines:       DefaultLogLines,       // log-band rows when visual on (§T88)
 		PlayerName:     "nameless tee",
 		PlayerClan:     "",
 		ConnectTimeout: 30,     // seconds (= DefaultConnectTimeout)
@@ -58,6 +60,9 @@ var cvars = []cvar{
 	{"cl_max_fps", "cap render repaints per second (0=unlimited)",
 		func(c *Config) string { return itoa(c.MaxFPS) },
 		func(c *Config, v string) { c.MaxFPS = clampAtoi(v, 0, 1000) }},
+	{"cl_viewport_min_fps", "min complete viewport redraws per second; capped by cl_max_fps (0=off)",
+		func(c *Config) string { return itoa(c.ViewportMinFPS) },
+		func(c *Config, v string) { c.ViewportMinFPS = clampAtoi(v, 0, 1000) }},
 	{"cl_log_lines", "log-band rows when the visual is on (capped at half the height)",
 		func(c *Config) string { return itoa(c.LogLines) },
 		func(c *Config, v string) { c.LogLines = clampAtoi(v, 1, 1000) }},
