@@ -91,10 +91,23 @@ func (a *App) helpLines() []string {
 			lines = append(lines, "  "+runewidth.FillRight(r.key, keyW)+"  "+r.label)
 		}
 	}
+	// Modes — explain to a newcomer how to ENTER each mode and WHAT it is, plus how
+	// to leave it (§C32/§V70). Keys come from the live keymap.
 	lines = append(lines,
 		"",
-		" chat:    !war / !peace / !team / !del <name>",
-		" console: spec [name], say <msg>, help",
+		" modes — press the key to enter; Esc leaves a text mode:",
+		"  "+kb(actChat)+"  chat — type a message to everyone, Enter sends",
+		"  "+kb(actTeamChat)+"  team chat — message only your team",
+		"  "+kb(actLocalConsole)+"  local console — a command line for client options (cvars) and",
+		"      commands: connect <addr>, say <msg>, help; Tab completes, Esc leaves",
+		"  "+kb(actRemoteConsole)+"  remote console (rcon) — server admin; type the rcon password first",
+		"  "+kb(actBrowser)+"  server browser — pick a server from the list, Enter joins, Esc closes",
+		"  "+kb(actScoreboard)+"  scoreboard — show the player table (press again to hide)",
+		"  "+kb(actVisual)+"  visual — toggle the live game view on/off",
+		"  "+kb(actFreeLook)+"  free-look — detach the camera and pan the map (WASD/arrows; Esc exits)",
+		"",
+		" chat commands:    !war / !peace / !team / !del <name>",
+		" console commands: connect <addr>, say <msg>, spec [name], help",
 		"",
 		" keys rebindable: ~/.config/teetui/keymap.txt",
 		" press ? or Esc to close ")

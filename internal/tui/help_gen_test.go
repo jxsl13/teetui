@@ -35,6 +35,31 @@ func TestHelpListsRebindAndFeatureAction(t *testing.T) {
 	}
 }
 
+// §T108/§V70: the help overlay explains each mode — how to enter, what it is,
+// and that Esc leaves text modes.
+func TestHelpExplainsModes(t *testing.T) {
+	app, _ := newTestApp(t)
+	h := helpText(app)
+	for _, want := range []string{
+		"modes",                 // a dedicated modes section
+		"local console",         // names the console mode
+		"cvars",                 // explains WHAT the console is
+		"remote console (rcon)", // names rcon
+		"rcon password",         // explains rcon needs a password
+		"server browser",        // names the browser
+		"free-look",             // names free-look
+		"Esc",                   // tells how to leave
+	} {
+		if !strings.Contains(h, want) {
+			t.Errorf("help modes section missing %q:\n%s", want, h)
+		}
+	}
+	// each mode's enter key is present (F1 console / F2 rcon).
+	if !strings.Contains(h, "F1") || !strings.Contains(h, "F2") {
+		t.Errorf("help missing console enter keys:\n%s", h)
+	}
+}
+
 // The help overlay opens and closes from NORMAL via the bound keys (§V17).
 func TestHelpEscapable(t *testing.T) {
 	app, _ := newTestApp(t)
