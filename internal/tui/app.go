@@ -1324,6 +1324,7 @@ func (a *App) joinSession(s *session, addr string, ver packet.Version, isDummy b
 		if rv := c.Version(); rv != packet.VersionAuto { // record resolved protocol (§V87)
 			s.version = rv
 		}
+		s.ddrace.Store(c.Capabilities().DDNet) // DDRace-derived? gates Pause (§T134/§V94)
 		if !isDummy {
 			a.reconnecting.Store(false)
 			a.reconnAttempt.Store(0) // a clean connection resets the attempt count

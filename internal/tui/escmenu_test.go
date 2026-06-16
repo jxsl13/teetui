@@ -67,8 +67,33 @@ func TestEscMenuContextItems(t *testing.T) {
 	if !hasLabel(app, "Join red") || !hasLabel(app, "Join blue") {
 		t.Errorf("team menu = %v", menuLabels(app))
 	}
-	if !hasLabel(app, "Kill") || !hasLabel(app, "Pause") {
-		t.Errorf("in-game menu missing Kill/Pause: %v", menuLabels(app))
+	// Kill is universal; Pause is gated on DDRace mode (§B22/§V94) — not DDNet here.
+	if !hasLabel(app, "Kill") {
+		t.Errorf("in-game menu missing Kill: %v", menuLabels(app))
+	}
+	if hasLabel(app, "Pause") {
+		t.Errorf("Pause must be hidden on non-DDRace mode: %v", menuLabels(app))
+	}
+}
+
+// §B22/§C44/§V94: Pause appears in-game only on a DDRace-derived (DDNet) server.
+func TestEscMenuPauseDDRaceOnly(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.cur().connected.Store(true)
+	st := client.TickState{LocalID: 0, Players: map[int]client.CharacterState{0: {}}}
+	app.cur().state.Observe(nil, st)
+
+	// Non-DDRace (default) in-game → Kill, no Pause.
+	app.openEscMenu()
+	if !hasLabel(app, "Kill") || hasLabel(app, "Pause") {
+		t.Errorf("non-DDRace menu = %v (want Kill, no Pause)", menuLabels(app))
+	}
+
+	// DDRace-derived → Pause appears.
+	app.cur().ddrace.Store(true)
+	app.openEscMenu()
+	if !hasLabel(app, "Pause") {
+		t.Errorf("DDRace menu missing Pause: %v", menuLabels(app))
 	}
 }
 

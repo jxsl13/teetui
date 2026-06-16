@@ -62,10 +62,12 @@ func (a *App) buildEscMenuItems() []menuItem {
 		)
 	}
 	if have && hasLocalChar(st) { // in-game (has a character, not spectating)
-		items = append(items,
-			menuItem{"Kill", func() { a.do(client.ActKill{}) }},
-			menuItem{"Pause", func() { a.sendChat("/pause", false) }},
-		)
+		items = append(items, menuItem{"Kill", func() { a.do(client.ActKill{}) }})
+		// Pause is a DDRace-family feature (/pause) — show only on DDNet-derived
+		// servers, like DDNet hides it on vanilla modes (§B22/§C44/§V94).
+		if a.ddraceMode() {
+			items = append(items, menuItem{"Pause", func() { a.sendChat("/pause", false) }})
+		}
 	}
 	// Swap which key set moves vs aims, live (§T119/§V66 cl_move_keys).
 	items = append(items, menuItem{"Swap move keys (" + a.cfgSnap().MoveKeys + ")", a.toggleMoveKeys})

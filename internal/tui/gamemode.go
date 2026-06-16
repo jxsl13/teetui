@@ -14,3 +14,11 @@ const (
 func teamMode(st client.TickState) bool {
 	return st.GameInfo.GameFlags&gameflagTeams != 0
 }
+
+// ddraceMode reports whether the active server is DDRace-derived, recorded at
+// connect from the DDNet ext capabilities flag (§T134/§V94). It gates the Esc
+// menu's Pause button, which only does anything on DDRace-family servers (the
+// /pause command); vanilla CTF/DM/0.7 → false → no Pause.
+func (a *App) ddraceMode() bool {
+	return a.cur().ddrace.Load()
+}
