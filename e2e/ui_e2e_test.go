@@ -19,6 +19,7 @@ import (
 	_ "github.com/jxsl13/teetui/features/lastping"
 	_ "github.com/jxsl13/teetui/features/replytoping"
 	_ "github.com/jxsl13/teetui/features/responders"
+	_ "github.com/jxsl13/teetui/features/serverlog"
 	_ "github.com/jxsl13/teetui/features/team"
 	_ "github.com/jxsl13/teetui/features/warlist"
 )
@@ -237,6 +238,16 @@ func TestE2EUI(t *testing.T) {
 				typeString(app, "cl_silent_chat_commands")
 				keySpecial(app, tcell.KeyEnter)
 				mustScreen(t, app, sim, "cvar value shown", `cl_silent_chat_commands = "1"`)
+			})
+
+			t.Run("serverlog_active", func(t *testing.T) {
+				// The serverlog feature is provisioned in the real binary on every
+				// server variant (§T106): its cvar is present (message formatting is
+				// covered by the feature's unit tests).
+				keySpecial(app, tcell.KeyF1)
+				typeString(app, "cl_show_game_messages")
+				keySpecial(app, tcell.KeyEnter)
+				mustScreen(t, app, sim, "serverlog cvar shown", `cl_show_game_messages = "1"`)
 			})
 
 			t.Run("server_browser_open_close", func(t *testing.T) {

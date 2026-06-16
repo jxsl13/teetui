@@ -97,6 +97,7 @@ feature module).
 | `cl_max_fps` | `60` | core | Cap on render repaints per second; `0` = unlimited (draw on every event). Pure render throttle — the network tick stays 50 Hz. |
 | `cl_log_lines` | `10` | core | Number of log rows shown beneath the visual when the game view is on. Hard-capped to half the terminal height; with the visual off, logs fill the whole body. |
 | `cl_move_keys` | `wasd` | core | Which key set moves the tee: `wasd` (then arrows aim) or `arrows` (then `WASD` aim). Lets left-handed players move with one hand and aim with the other. |
+| `cl_show_game_messages` | `1` | serverlog | Show game messages in the log: players joining/leaving, joining spectators/teams, and the kill feed (who killed whom, or a plain death). Set `0` to hide. |
 | `cl_silent_chat_commands` | `1` | warlist | Apply `!war`/`!peace`/… locally **without** sending the command line to the server. Set `0` to also send it. |
 | `cl_war_list_auto_reload` | `10` | warlist | Reload `warlist.txt` every N **seconds** if it changed on disk (live external edits). `0` = off. |
 | `cl_show_last_ping` | `0` | lastping | Show the most recent chat line that pinged you in the status bar. |
@@ -167,8 +168,11 @@ feature module).
   (`cl_chat_spam_filter`); manage the list with `addfilter`/`listfilter`/`delfilter`.
 - **lastping** — keeps the last 16 pings and can show the latest in the status
   bar (`cl_show_last_ping`).
-- **team** — `team <spectators|red|blue|game>` / `join` to switch team or join
-  the game.
+- **team** — `team <spectators|red|blue|game>` / `join` (or the `j` key) to switch
+  team or join the game.
+- **serverlog** — shows the game events a normal DDNet client shows: players
+  joining / leaving (with reason), joining spectators / teams, and the kill feed
+  (who killed whom, or a plain death). Toggle with `cl_show_game_messages`.
 - **chillpw** — opt-in rcon auto-login from a local secrets file (`cl_chillpw`).
 - **cmdhook** — run your own external scripts on events (see
   [extensibility](#architecture--extensibility)).
