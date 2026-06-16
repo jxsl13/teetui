@@ -39,6 +39,7 @@ const (
 	actJump
 	actFire
 	actSubcellToggle
+	actFreeLook
 )
 
 // actionOrder is the canonical iteration order for deterministic Save output.
@@ -46,7 +47,7 @@ var actionOrder = []KeyAction{
 	actHelp, actQuit, actBrowser, actChat, actTeamChat, actLocalConsole,
 	actRemoteConsole, actVisual, actKill, actEmote, actScoreboard,
 	actReconnect, actVoteYes, actVoteNo, actHook, actMoveLeft, actMoveRight,
-	actMoveStop, actJump, actFire, actSubcellToggle,
+	actMoveStop, actJump, actFire, actSubcellToggle, actFreeLook,
 }
 
 // actionNames is the persisted token for each action.
@@ -58,7 +59,7 @@ var actionNames = map[KeyAction]string{
 	actReconnect: "reconnect", actVoteYes: "vote_yes", actVoteNo: "vote_no",
 	actHook: "hook", actMoveLeft: "move_left", actMoveRight: "move_right",
 	actMoveStop: "move_stop", actJump: "jump", actFire: "fire",
-	actSubcellToggle: "subcell",
+	actSubcellToggle: "subcell", actFreeLook: "free_look",
 }
 
 // actionByName is the reverse of actionNames.
@@ -127,6 +128,7 @@ func DefaultKeymap() *Keymap {
 	k.bindRune('s', actMoveStop)
 	k.bindRune(' ', actJump)
 	k.bindRune('f', actFire)
+	k.bindRune('G', actFreeLook) // §T94 free-look map-pan toggle (rebindable)
 	return k
 }
 

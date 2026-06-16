@@ -64,6 +64,8 @@ type App struct {
 
 	visual     bool
 	subcell    bool           // half-block sub-cell map render (§T46)
+	freeLook   bool           // free-look map-pan sub-mode (§T94/§V54)
+	panX, panY int            // free-look camera pan offset, in tiles (§T94)
 	camera     cameraSmoother // eases the rendered camera center (§T43)
 	help       bool
 	scoreboard bool
@@ -225,6 +227,7 @@ func (a *App) SetConnected(b bool) { a.connected.Store(b) }
 func (a *App) ShowDisconnect(reason string) {
 	a.connected.Store(false)
 	a.camera.reset() // next session snaps the camera, no slide across the map
+	a.exitFreeLook() // drop free-look on disconnect; next session locks to tee (§V54)
 	a.mu.Lock()
 	a.popup = disconnectPopup(reason)
 	a.mu.Unlock()
@@ -480,6 +483,12 @@ func (a *App) handleNormal(ev *tcell.EventKey) {
 		}
 		return
 	}
+	// Free-look map-pan: arrows/WASD pan the camera and no tee input is sent
+	// while active (§T94/§V54). Intercept BEFORE the keymap so a/s/d (move) and
+	// the arrows (aim) are repurposed to panning; the toggle key falls through.
+	if a.freeLook && a.handleFreeLook(ev) {
+		return
+	}
 	// Discrete named commands resolve through the rebindable keymap (§V19/§T42).
 	if act, ok := a.keymap.Lookup(ev.Key(), ev.Rune()); ok {
 		a.doAction(act)
@@ -514,6 +523,9 @@ func (a *App) handleNormal(ev *tcell.EventKey) {
 		a.input.SetAim(aimReach, 0)
 		return
 	}
+	if a.freeLook { // no tee input (incl. weapon select) while panning (§V54)
+		return
+	}
 	if w, ok := weaponForRune(ev.Rune()); ok {
 		a.input.SetWeapon(w)
 	}
@@ -522,7 +534,14 @@ func (a *App) handleNormal(ev *tcell.EventKey) {
 // doAction runs a keymap-resolved NORMAL-mode command. Centralizing the dispatch
 // keeps behavior identical regardless of which key is bound to it (§T42).
 func (a *App) doAction(act KeyAction) {
+	// Free-look is view-only: drop any tee-affecting command while panning so a
+	// stray k/Space/f/h/e/move cannot move or fire the tee (§T94/§V54/§V12).
+	if a.freeLook && isTeeInput(act) {
+		return
+	}
 	switch act {
+	case actFreeLook:
+		a.toggleFreeLook()
 	case actQuit:
 		a.Stop()
 	case actHelp:
@@ -1323,10 +1342,17 @@ func (a *App) drawScene(r Rect, st client.TickState) {
 		return
 	}
 	cx, cy := a.camera.step(tx, ty, cameraAlpha)
+	if a.freeLook { // pan offset detaches the view from the tee (§T94/§V54)
+		cx += a.panX
+		cy += a.panY
+	}
 	if a.subcell {
 		drawGameHalfCentered(a.scr, r.X, r.Y, r.W, r.H, cx, cy, st)
 	} else {
 		drawGameCentered(a.scr, r.X, r.Y, r.W, r.H, cx, cy, st)
+	}
+	if a.freeLook { // indicator at top-left of the game rect (panned coords in HUD)
+		drawStr(a.scr, r.X, r.Y, r.W, StyleSystem, " [free-look] WASD/arrows pan · Esc exit ")
 	}
 }
 
