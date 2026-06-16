@@ -30,8 +30,9 @@ func (f serverLog) enabled(h feature.API) bool {
 	return v == "1" || v == "true" || v == "on"
 }
 
-// nameOf resolves a client id to its roster name, falling back to "#id" when the
-// registry has no name yet (§V26).
+// nameOf resolves a client id to its roster name. For the LOCAL player it falls
+// back to our own configured name (the roster entry can be nameless, §B14/§V26),
+// and only then to "#id".
 func nameOf(h feature.API, id int) string {
 	for _, p := range h.Roster() {
 		if p.ClientID == id {
@@ -39,6 +40,12 @@ func nameOf(h feature.API, id int) string {
 				return p.Name
 			}
 			break
+		}
+	}
+	// The local player's roster name may be empty even though we know it (§B14).
+	if st, ok := h.Tick(); ok && id == st.LocalID {
+		if n := h.PlayerName(); n != "" {
+			return n
 		}
 	}
 	return fmt.Sprintf("#%d", id)

@@ -11,15 +11,20 @@ import (
 // recHost records logged lines and serves a fixed roster for name resolution.
 type recHost struct {
 	feature.NopAPI
-	logs   []string
-	roster []client.PlayerState
-	cfg    map[string]string
+	logs     []string
+	roster   []client.PlayerState
+	cfg      map[string]string
+	tick     client.TickState
+	haveTick bool
+	selfName string
 }
 
 func (h *recHost) Log(msg string)                    { h.logs = append(h.logs, msg) }
 func (h *recHost) Roster() []client.PlayerState      { return h.roster }
 func (h *recHost) DefineConfig(name, def, _ string)  { h.cfg[name] = def }
 func (h *recHost) Config(name string) (string, bool) { v, ok := h.cfg[name]; return v, ok }
+func (h *recHost) Tick() (client.TickState, bool)    { return h.tick, h.haveTick }
+func (h *recHost) PlayerName() string                { return h.selfName }
 
 func newHost() *recHost {
 	h := &recHost{cfg: map[string]string{}}
@@ -96,5 +101,21 @@ func TestServerLogSuppression(t *testing.T) {
 	f.OnKill(h, feature.KillEvent{Killer: 1, Victim: 2})
 	if len(h.logs) != 0 {
 		t.Errorf("disabled feature should not log: %v", h.logs)
+	}
+}
+
+// §B14/§V26: the local player's death uses our configured name even when its
+// roster entry is nameless (avoids "'#0' died").
+func TestServerLogLocalName(t *testing.T) {
+	f := serverLog{}
+	h := newHost()
+	h.roster = []client.PlayerState{{ClientID: 0, Name: ""}} // local, nameless roster entry
+	h.tick = client.TickState{LocalID: 0}
+	h.haveTick = true
+	h.selfName = "nameless tee"
+
+	f.OnKill(h, feature.KillEvent{Killer: -1, Victim: 0})
+	if last(h) != "'nameless tee' died" {
+		t.Errorf("local death = %q want 'nameless tee' died", last(h))
 	}
 }
