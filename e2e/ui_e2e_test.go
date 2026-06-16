@@ -206,6 +206,11 @@ func TestE2EUI(t *testing.T) {
 				mustScreen(t, app, sim, "legend free-look entry", "free-look")
 			})
 
+			t.Run("join_game_key", func(t *testing.T) {
+				keyRune(app, 'j') // join the game via key (§T97/§V57, team feature)
+				mustScreen(t, app, sim, "join logged", "team → game")
+			})
+
 			t.Run("chat_local_echo", func(t *testing.T) {
 				keyRune(app, 't') // enter chat (§T11/§I keymap)
 				mustScreen(t, app, sim, "chat prompt", "say:")

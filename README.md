@@ -199,6 +199,7 @@ bindings.
 | `G` | free-look map-pan (arrows/WASD pan the camera, `Esc`/`G` recenter & exit) |
 | `Tab` | scoreboard |
 | `H` | reply to last ping *(replytoping feature)* |
+| `j` | join the game (team 0) *(team feature)* |
 | `R` | reconnect |
 | `a` / `d` / `s` | move left / right / stop |
 | `space` | jump |

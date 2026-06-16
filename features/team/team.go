@@ -10,7 +10,9 @@
 //	team game         join the game (alias of red/flock, id 0)
 //	join              shorthand for "team game"
 //
-// All comms go through Host.Do(client.ActSetTeam{Team}) — no raw packet (§V12).
+// Key: `j` joins the game (team 0) — the keybind for the console `join`
+// (§T97/§V57). All comms go through Host.Do(client.ActSetTeam{Team}) — no raw
+// packet (§V12).
 package team
 
 import (
@@ -55,6 +57,13 @@ func (f teamFeature) Provision(h feature.Host) error {
 	})
 	h.DefineCommand("join", "join — join the game (team 0)", func(string) []string {
 		return f.setTeam(h, teamRedGame)
+	})
+	// Key trigger for the console `join` (§T97/§V57): join the game from spectator
+	// or in-game with one keypress. Logs the same outcome lines as the command.
+	h.DefineAction("join_game", "j", "join the game (team 0)", func() {
+		for _, line := range f.setTeam(h, teamRedGame) {
+			h.Log(line)
+		}
 	})
 	return nil
 }
