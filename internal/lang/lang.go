@@ -103,30 +103,30 @@ func ContainsName(msg, name string) bool {
 	return strings.Contains(foldKey(msg), foldKey(name))
 }
 
-// IsGreeting reports whether msg is a greeting (en/qq/rus).
-func IsGreeting(msg string) bool {
+// HasGreeting reports whether msg contains a greeting word (en/qq/rus).
+func HasGreeting(msg string) bool {
 	return FindAnyWord(msg, "hi", "hello", "hey", "heya", "hai", "yo", "henlo",
 		"hallo", "moin", "servus", "salut", "bonjour", "ola", "hola") ||
 		ContainsAny(msg, "qq", "o/", "\\o") ||
 		FindAnyWord(msg, "привет", "прив", "ку", "хай", "здарова", "здаров")
 }
 
-// IsBye reports whether msg is a farewell.
-func IsBye(msg string) bool {
+// HasFarewell reports whether msg contains a farewell word.
+func HasFarewell(msg string) bool {
 	return FindAnyWord(msg, "bye", "cya", "cu", "gn", "cee", "ciao", "tschau",
 		"tschüss", "ade", "adieu", "aurevoir") ||
 		ContainsAny(msg, "good night", "good bye", "see you", "bb ", "bb!", "пока", "до встречи")
 }
 
-// IsInsult reports whether msg is a (mild) insult. Non-vulgar shortlist; the
+// HasInsult reports whether msg contains a (mild) insult word. Non-vulgar shortlist; the
 // reply feature answers neutrally rather than escalating.
-func IsInsult(msg string) bool {
+func HasInsult(msg string) bool {
 	return FindAnyWord(msg, "noob", "nub", "trash", "bad", "loser", "ez", "bot",
 		"idiot", "dumb", "scrub")
 }
 
-// IsAskToAsk reports the "can I ask you something?" pattern (en+de).
-func IsAskToAsk(msg string) bool {
+// HasAskToAsk reports whether msg contains the "can I ask you something?" pattern (en+de).
+func HasAskToAsk(msg string) bool {
 	return ContainsAny(msg,
 		"can i ask", "may i ask", "can i ask you", "ask you something",
 		"darf ich", "kann ich was fragen", "kann ich dich was fragen", "eine frage",
@@ -136,22 +136,22 @@ func IsAskToAsk(msg string) bool {
 // HasQuestionMark reports whether msg contains '?'.
 func HasQuestionMark(msg string) bool { return strings.Contains(msg, "?") }
 
-// IsQuestionWhy: why / warum / pourquoi / почему.
-func IsQuestionWhy(msg string) bool {
+// HasWhy: why / warum / pourquoi / почему.
+func HasWhy(msg string) bool {
 	return FindAnyWord(msg, "why", "warum", "wieso", "weshalb", "pourquoi", "почему", "зачем")
 }
 
-// IsQuestionHow: how / wie / comment / как.
-func IsQuestionHow(msg string) bool {
+// HasHow: how / wie / comment / как.
+func HasHow(msg string) bool {
 	return FindAnyWord(msg, "how", "wie", "comment", "как")
 }
 
-// IsQuestionWhichWhat: what / which / was / welche / quoi / что.
-func IsQuestionWhichWhat(msg string) bool {
+// HasWhatWhich: what / which / was / welche / quoi / что.
+func HasWhatWhich(msg string) bool {
 	return FindAnyWord(msg, "what", "which", "was", "welche", "welcher", "quoi", "quel", "что", "какой")
 }
 
-// IsQuestionWhoWhichWhat: adds who.
-func IsQuestionWhoWhichWhat(msg string) bool {
-	return IsQuestionWhichWhat(msg) || FindAnyWord(msg, "who", "wer", "qui", "кто")
+// HasWhoWhatWhich: adds who.
+func HasWhoWhatWhich(msg string) bool {
+	return HasWhatWhich(msg) || FindAnyWord(msg, "who", "wer", "qui", "кто")
 }

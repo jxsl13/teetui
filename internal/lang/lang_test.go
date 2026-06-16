@@ -33,28 +33,28 @@ func TestFindWord(t *testing.T) {
 
 // §T77: the intent classifiers cover en/de/fr/ru and don't cross-fire.
 func TestClassifiers(t *testing.T) {
-	if !IsGreeting("hey bob") || !IsGreeting("Hallo") || !IsGreeting("привет") {
+	if !HasGreeting("hey bob") || !HasGreeting("Hallo") || !HasGreeting("привет") {
 		t.Error("greeting misses a known form")
 	}
-	if IsGreeting("history channel") {
+	if HasGreeting("history channel") {
 		t.Error("greeting false-positive on 'history'")
 	}
-	if !IsBye("cya later") || !IsBye("tschau") || !IsBye("good night") {
+	if !HasFarewell("cya later") || !HasFarewell("tschau") || !HasFarewell("good night") {
 		t.Error("bye misses a known form")
 	}
-	if !IsAskToAsk("can i ask you something") || !IsAskToAsk("kann ich was fragen") {
+	if !HasAskToAsk("can i ask you something") || !HasAskToAsk("kann ich was fragen") {
 		t.Error("ask-to-ask misses")
 	}
-	if !IsQuestionWhy("why") || !IsQuestionWhy("warum") || !IsQuestionWhy("почему") {
+	if !HasWhy("why") || !HasWhy("warum") || !HasWhy("почему") {
 		t.Error("why-question misses")
 	}
-	if !IsQuestionHow("how are you") || !IsQuestionHow("wie gehts") {
+	if !HasHow("how are you") || !HasHow("wie gehts") {
 		t.Error("how-question misses")
 	}
-	if !IsQuestionWhoWhichWhat("who are you") || !IsQuestionWhichWhat("what is this") {
+	if !HasWhoWhatWhich("who are you") || !HasWhatWhich("what is this") {
 		t.Error("who/what-question misses")
 	}
-	if IsInsult("nice shot") || !IsInsult("you noob") {
+	if HasInsult("nice shot") || !HasInsult("you noob") {
 		t.Error("insult classify wrong")
 	}
 	if !ContainsAny("HOW r u", "how r u") || !HasQuestionMark("ok?") {
@@ -71,8 +71,8 @@ func TestFoldNormalizedMatching(t *testing.T) {
 		t.Error("composed/decomposed accent not folded")
 	}
 	// The umlaut in "tschüss" folds away → real spelling matches the bye list.
-	if !IsBye("tschüss") || !IsBye("tschuss") {
-		t.Error("tschüss/tschuss not folded in IsBye")
+	if !HasFarewell("tschüss") || !HasFarewell("tschuss") {
+		t.Error("tschüss/tschuss not folded in HasFarewell")
 	}
 	// ContainsName is accent- and case-insensitive.
 	if !ContainsName("hey JöRG!", "jorg") {

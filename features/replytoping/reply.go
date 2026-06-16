@@ -35,13 +35,13 @@ func composeReply(msg, from, self string) (string, bool) {
 		return r, true
 	}
 	switch {
-	case lang.IsAskToAsk(msg):
+	case lang.HasAskToAsk(msg):
 		return from + " just ask :)", true
-	case lang.IsGreeting(msg):
+	case lang.HasGreeting(msg):
 		return from + " hi", true
-	case lang.IsBye(msg):
+	case lang.HasFarewell(msg):
 		return from + " cya", true
-	case lang.IsInsult(msg):
+	case lang.HasInsult(msg):
 		return from + " :)", true
 	}
 	if isNoContextPing(msg, self) {
@@ -104,7 +104,7 @@ func composeQueryReply(msg, from string, env queryEnv) (string, bool) {
 		}
 		return from + " spectating", true
 	}
-	if lang.IsQuestionWhy(msg) && lang.FindAnyWord(msg, "kill", "killed", "kills", "killst", "tötest") {
+	if lang.HasWhy(msg) && lang.FindAnyWord(msg, "kill", "killed", "kills", "killst", "tötest") {
 		if env.warlist != nil && env.warlist.Relation(from) == "war" {
 			if reason := env.warlist.Reason(from); reason != "" {
 				return fmt.Sprintf("%s because: %s", from, reason), true

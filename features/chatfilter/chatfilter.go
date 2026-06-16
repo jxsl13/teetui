@@ -63,7 +63,7 @@ func (f *chatFilter) OnChat(h feature.API, e feature.ChatEvent) bool {
 	insultsStr, _ := h.Config("cl_chat_spam_filter_insults")
 	insults := insultsStr == "1" || insultsStr == "true" || insultsStr == "on"
 
-	if !f.matches(e.Msg) && !(insults && lang.IsInsult(e.Msg)) {
+	if !f.matches(e.Msg) && !(insults && lang.HasInsult(e.Msg)) {
 		return false
 	}
 	if mode == 2 && e.Name != "" {
