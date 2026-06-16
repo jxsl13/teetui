@@ -202,6 +202,7 @@ bindings.
 | `v` | toggle game view |
 | `V` | toggle sub-cell (half-block) detail |
 | `G` | free-look map-pan (arrows/WASD pan the camera, `Esc`/`G` recenter & exit) |
+| `Esc` (connected) | open the overlay action menu — ←/→/Tab select, Enter activate, Esc close: join team/game, spectate, kill, pause, connect/follow a dummy, disconnect |
 | `Tab` | scoreboard |
 | `H` | reply to last ping *(replytoping feature)* |
 | `j` | join the game (team 0) *(team feature)* |
