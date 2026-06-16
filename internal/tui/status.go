@@ -34,6 +34,7 @@ func raceField(rt client.RaceTime) string {
 type connStatus struct {
 	connected    bool
 	reconnecting bool
+	joining      bool // a connect handshake is in flight (§B9)
 	attempt      int
 }
 
@@ -46,8 +47,10 @@ func connLabel(cs connStatus) string {
 		return "connected"
 	case cs.reconnecting:
 		return fmt.Sprintf("reconnecting #%d", cs.attempt)
-	default:
+	case cs.joining:
 		return "connecting"
+	default:
+		return "not connected" // idle: no connect attempted (§B9) — ⊥ "connecting"
 	}
 }
 

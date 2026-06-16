@@ -43,6 +43,7 @@ type App struct {
 
 	cli           atomic.Pointer[client.Client]
 	connected     atomic.Bool
+	joining       atomic.Bool  // a connect handshake is in flight (§B9); idle ≠ connecting
 	reconnecting  atomic.Bool  // an auto-reconnect is in flight (§T25)
 	reconnAttempt atomic.Int32 // auto-reconnect attempt counter (§T25)
 
@@ -252,10 +253,24 @@ func (a *App) quitting() bool {
 }
 
 // connStatus snapshots the connection state for the status bar (§T25).
+// connecting reports whether a connect handshake or auto-reconnect is in flight
+// (≠ idle). At idle teetui shows "not connected", never "connecting" (§B9).
+func (a *App) connecting() bool { return a.joining.Load() || a.reconnecting.Load() }
+
+// scenePlaceholder is the game-window text when there is no map yet: "connecting…"
+// while joining or connected-but-loading, else an idle hint (§B9).
+func (a *App) scenePlaceholder() string {
+	if a.connected.Load() || a.connecting() {
+		return "connecting…"
+	}
+	return "not connected — press B for the server browser"
+}
+
 func (a *App) connStatus() connStatus {
 	return connStatus{
 		connected:    a.connected.Load(),
 		reconnecting: a.reconnecting.Load(),
+		joining:      a.joining.Load(),
 		attempt:      int(a.reconnAttempt.Load()),
 	}
 }
@@ -1115,6 +1130,7 @@ func (a *App) Join(addr string, ver packet.Version) {
 		_ = old.Close()
 	}
 	a.connected.Store(false)
+	a.joining.Store(true) // handshake in flight → show "connecting" (§B9)
 	a.server = addr
 	a.version = ver
 	c := a.dialer(addr, ver)
@@ -1154,11 +1170,13 @@ func (a *App) Join(addr string, ver packet.Version) {
 			}
 			a.log.Addf(StyleSystem, "press R to reconnect")
 			a.reconnecting.Store(false) // attempt finished (failed) — stop the spinner
+			a.joining.Store(false)      // handshake over (§B9)
 			fcancel()
 			a.wake()
 			return
 		}
 		a.SetConnected(true)
+		a.joining.Store(false) // handshake done (§B9)
 		a.reconnecting.Store(false)
 		a.reconnAttempt.Store(0) // a clean connection resets the attempt count
 		close(stop)              // connected → watchdog must not cancel the live session
@@ -1284,8 +1302,9 @@ func (a *App) draw() {
 			DrawScoreboard(a.scr, lay.Game, st, a.nameStyle)
 		}
 		// While a join is in flight (no map/snapshot yet) show the indeterminate
-		// connecting / map-download indicator over the game window (§T33).
-		if !a.connected.Load() {
+		// connecting / map-download indicator over the game window (§T33). Only
+		// when actually connecting — idle (never joined) shows no spinner (§B9).
+		if !a.connected.Load() && a.connecting() {
 			drawStr(a.scr, lay.Game.X, lay.Game.Y, lay.Game.W, StyleSystem, connectingLine(a.drawFrame))
 		}
 	}
@@ -1328,7 +1347,7 @@ func (a *App) drawScene(r Rect, st client.TickState) {
 	tx, ty, ok := cameraCenter(st)
 	if st.Map == nil || !ok {
 		a.camera.reset()
-		drawStr(a.scr, r.X, r.Y, r.W, StyleSystem, "connecting…")
+		drawStr(a.scr, r.X, r.Y, r.W, StyleSystem, a.scenePlaceholder())
 		return
 	}
 	cx, cy := a.camera.step(tx, ty, cameraAlpha)
