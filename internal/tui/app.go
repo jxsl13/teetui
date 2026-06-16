@@ -239,8 +239,8 @@ func (a *App) onDisconnect(s *session, reason string) {
 	s.state.Clear()                         // drop the dead map/tees from the view (§T117/§V79)
 	feature.FireDisconnect(a.api(), reason) // notify feature modules (§T76)
 
-	// Deliberate close (Esc-menu Disconnect): disconnectUser already cleared state
-	// + opened the browser synchronously (§B16); just don't reconnect.
+	// Deliberate close (Esc-menu Disconnect/Disconnect dummy): closeSession already
+	// cleared state synchronously (§B16); just don't reconnect.
 	if s.userClosing.Swap(false) {
 		return
 	}
@@ -264,13 +264,11 @@ func (a *App) onDisconnect(s *session, reason string) {
 	go a.reconnect()
 }
 
-// disconnectUser tears down the active session at the user's request (Esc-menu
-// Disconnect, §T111) SYNCHRONOUSLY — clearing the render state and opening the
-// browser HERE rather than waiting on the async OnDisconnect callback, which may
-// not fire once the frontend ctx is cancelled (§B16/§V84). userClosing marks the
-// close deliberate so onDisconnect (if it does fire) skips the auto-reconnect.
-func (a *App) disconnectUser() {
-	s := a.cur()
+// closeSession tears one session down SYNCHRONOUSLY at the user's request:
+// cancel its frontend, close its client, and clear its render state. userClosing
+// marks the close deliberate so onDisconnect (if it does fire after the ctx is
+// cancelled) skips the auto-reconnect (§B16/§V84).
+func (a *App) closeSession(s *session) {
 	s.userClosing.Store(true)
 	if s.cancel != nil {
 		s.cancel()
@@ -281,11 +279,43 @@ func (a *App) disconnectUser() {
 	}
 	s.connected.Store(false)
 	s.joining.Store(false)
-	s.state.Clear()  // drop the dead map immediately (§B16/§V79)
+	s.state.Clear() // drop the dead map immediately (§B16/§V79)
+}
+
+// disconnectAll ends the WHOLE connection at the user's request (Esc-menu
+// "Disconnect", §T111/§C42): close the primary AND every dummy (a dummy ⊥
+// outlive its primary, §V92), drop the dummies, and open the browser HERE rather
+// than waiting on the async OnDisconnect callback (§B16/§V84).
+func (a *App) disconnectAll() {
+	sessions, _ := a.sessionList()
+	for _, s := range sessions {
+		a.closeSession(s)
+	}
+	a.sessMu.Lock()
+	if len(a.sessions) > 0 {
+		a.sessions = []*session{a.sessions[0]} // keep only the primary; drop dummies
+	}
+	a.active = 0
+	a.sessMu.Unlock()
 	a.camera.reset() // ⊥ slide on next session
 	a.exitFreeLook()
 	a.openBrowser() // back to the server browser
 	a.wake()
+}
+
+// disconnectDummy ends ONLY the active dummy (Esc-menu "Disconnect dummy",
+// §C42/§V92): close it, drop it, and refollow the primary — which stays
+// connected. ⊥ browser, ⊥ reconnect. The menu shows this only when a dummy is
+// active; the primary guard makes it a no-op otherwise.
+func (a *App) disconnectDummy() {
+	s := a.cur()
+	if a.isPrimary(s) {
+		return
+	}
+	a.closeSession(s)
+	a.dropSession(s)
+	a.setActive(0) // refollow primary (camera reset + wake); main stays connected
+	a.log.Addf(StyleSystem, "dummy '%s' disconnected", s.name)
 }
 
 // quitting reports whether Stop has been called (the quit channel is closed), so

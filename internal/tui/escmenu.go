@@ -74,7 +74,13 @@ func (a *App) buildEscMenuItems() []menuItem {
 	if c := a.cur().cli.Load(); c != nil && c.Capabilities().AllowDummy {
 		items = append(items, menuItem{"Connect dummy", a.connectDummy})
 	}
-	items = append(items, menuItem{"Disconnect", a.disconnectUser})
+	// Scoped disconnect (§C42/§V92): a dummy being followed gets "Disconnect dummy"
+	// (closes only it, refollow primary) ahead of "Disconnect" (ends the whole
+	// connection: primary + all dummies → browser).
+	if !a.isPrimary(a.cur()) {
+		items = append(items, menuItem{"Disconnect dummy", a.disconnectDummy})
+	}
+	items = append(items, menuItem{"Disconnect", a.disconnectAll})
 	// Follow list (§T114): with dummies connected, list every own client; the
 	// active one is marked. Selecting follows it = render from its perspective.
 	if sessions, active := a.sessionList(); len(sessions) > 1 {
