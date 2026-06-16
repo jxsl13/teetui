@@ -68,10 +68,9 @@ type App struct {
 	panX, panY int            // free-look camera pan offset, in tiles (§T94)
 	camera     cameraSmoother // eases the rendered camera center (§T43)
 	help       bool
-	bcast      string      // current server broadcast text (§T121), "" = none
-	bcastUntil time.Time   // broadcast hides after this (DDNet ~10s, §V82)
-	escMenu    escMenu     // DDNet-style overlay action bar (§T111/§V74)
-	userDisc   atomic.Bool // user-initiated disconnect: suppress auto-reconnect (§T111)
+	bcast      string    // current server broadcast text (§T121), "" = none
+	bcastUntil time.Time // broadcast hides after this (DDNet ~10s, §V82)
+	escMenu    escMenu   // DDNet-style overlay action bar (§T111/§V74)
 	scoreboard bool
 	hookOn     bool
 	drawFrame  int // advances each redraw; drives the connecting spinner (§T33)
@@ -239,6 +238,12 @@ func (a *App) onDisconnect(s *session, reason string) {
 	s.state.Clear()                         // drop the dead map/tees from the view (§T117/§V79)
 	feature.FireDisconnect(a.api(), reason) // notify feature modules (§T76)
 
+	// Deliberate close (Esc-menu Disconnect): disconnectUser already cleared state
+	// + opened the browser synchronously (§B16); just don't reconnect.
+	if s.userClosing.Swap(false) {
+		return
+	}
+
 	if !a.isPrimary(s) { // a dummy dropped — just remove it (§V77)
 		a.log.Addf(StyleSystem, "dummy '%s' disconnected", s.name)
 		a.dropSession(s)
@@ -251,12 +256,6 @@ func (a *App) onDisconnect(s *session, reason string) {
 	if a.quitting() {
 		return
 	}
-	// A user-initiated disconnect (Esc menu) returns to the browser, no reconnect.
-	if a.userDisc.Swap(false) {
-		a.openBrowser()
-		a.wake()
-		return
-	}
 	a.mu.Lock()
 	a.popup = disconnectPopup(reason)
 	a.mu.Unlock()
@@ -265,11 +264,13 @@ func (a *App) onDisconnect(s *session, reason string) {
 }
 
 // disconnectUser tears down the active session at the user's request (Esc-menu
-// Disconnect, §T111) without auto-reconnecting; closing the client fires
-// OnDisconnect → onDisconnect, which sees the flag and opens the browser.
+// Disconnect, §T111) SYNCHRONOUSLY — clearing the render state and opening the
+// browser HERE rather than waiting on the async OnDisconnect callback, which may
+// not fire once the frontend ctx is cancelled (§B16/§V84). userClosing marks the
+// close deliberate so onDisconnect (if it does fire) skips the auto-reconnect.
 func (a *App) disconnectUser() {
-	a.userDisc.Store(true)
 	s := a.cur()
+	s.userClosing.Store(true)
 	if s.cancel != nil {
 		s.cancel()
 		s.cancel = nil
@@ -278,6 +279,12 @@ func (a *App) disconnectUser() {
 		_ = c.Close()
 	}
 	s.connected.Store(false)
+	s.joining.Store(false)
+	s.state.Clear()  // drop the dead map immediately (§B16/§V79)
+	a.camera.reset() // ⊥ slide on next session
+	a.exitFreeLook()
+	a.openBrowser() // back to the server browser
+	a.wake()
 }
 
 // quitting reports whether Stop has been called (the quit channel is closed), so

@@ -15,15 +15,16 @@ import (
 // holds one or more — the primary plus any dummies — and renders/controls the
 // ACTIVE one (§V77).
 type session struct {
-	cli       atomic.Pointer[client.Client]
-	state     *State
-	input     *InputController
-	cancel    context.CancelFunc // frontend (RunFrontends) cancel
-	server    string
-	version   packet.Version
-	name      string // label shown in the follow list
-	connected atomic.Bool
-	joining   atomic.Bool
+	cli         atomic.Pointer[client.Client]
+	state       *State
+	input       *InputController
+	cancel      context.CancelFunc // frontend (RunFrontends) cancel
+	server      string
+	version     packet.Version
+	name        string // label shown in the follow list
+	connected   atomic.Bool
+	joining     atomic.Bool
+	userClosing atomic.Bool // user-initiated close: suppress auto-reconnect (§B16/§V84)
 }
 
 // newSession builds a session with its own State + InputController, wiring the
