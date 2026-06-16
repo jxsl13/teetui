@@ -37,41 +37,41 @@ func TestClipName(t *testing.T) {
 	}
 }
 
-// §C43/§V93: derived dummy name is distinct, fits 15 bytes, keeps the (N) suffix.
+// §C43/§V93: dummy name mirrors DDNet CClient::DummyName() — "[D] "+name, the
+// "brainless tee" fallback, rune-clipped valid utf8.
 func TestDeriveDummyName(t *testing.T) {
-	if got := deriveDummyName("bob", 1); got != "bob(1)" {
-		t.Errorf("derive(bob,1) = %q want bob(1)", got)
+	if got := deriveDummyName("bob"); got != "[D] bob" {
+		t.Errorf("derive(bob) = %q want [D] bob", got)
 	}
-	if got := deriveDummyName("bob", 2); got != "bob(2)" {
-		t.Errorf("derive(bob,2) = %q want bob(2)", got)
+	if got := deriveDummyName(""); got != "brainless tee" {
+		t.Errorf("derive(empty) = %q want brainless tee (DDNet fallback)", got)
 	}
-	// Long base: the (N) suffix survives, the base shrinks to keep ≤15 bytes.
-	long := deriveDummyName("abcdefghijklmnopqrst", 1) // base 20 + "(1)"
+	// Long name: the "[D] " prefix (front) survives, the name tail clips to ≤15.
+	long := deriveDummyName("abcdefghijklmnopqrst") // "[D] " + 20 chars
 	if len(long) > maxNameBytes {
 		t.Errorf("derive long = %q (%d bytes), want ≤%d", long, len(long), maxNameBytes)
 	}
-	if got := long[len(long)-3:]; got != "(1)" {
-		t.Errorf("derive long suffix = %q want (1)", got)
+	if got := long[:4]; got != "[D] " {
+		t.Errorf("derive long prefix = %q want '[D] '", got)
 	}
-	// n<1 normalizes to 1.
-	if got := deriveDummyName("x", 0); got != "x(1)" {
-		t.Errorf("derive(x,0) = %q want x(1)", got)
+	// Multibyte tail clips on a rune boundary (valid utf8).
+	jp := deriveDummyName("あいうえおか")
+	if !utf8.ValidString(jp) || len(jp) > maxNameBytes {
+		t.Errorf("derive jp = %q (%d bytes, valid=%v)", jp, len(jp), utf8.ValidString(jp))
 	}
 }
 
 // §C43/§V93: dummyName uses cl_dummy_name when set (clipped), else derives.
 func TestDummyNameCvarVsDerived(t *testing.T) {
 	app, _ := newTestApp(t)
-	d := app.newSession("dummy", nil, nil)
-	app.addSession(d) // ordinal 1
 
-	// Empty cvar → derived distinct name from the main name.
-	if got := app.dummyName("bob", d); got != "bob(1)" {
-		t.Errorf("derived dummyName = %q want bob(1)", got)
+	// Empty cvar → DDNet-derived "[D] " name from the main name.
+	if got := app.dummyName("bob"); got != "[D] bob" {
+		t.Errorf("derived dummyName = %q want [D] bob", got)
 	}
 	// Explicit cvar overrides.
 	app.cfg.DummyName = "mybot"
-	if got := app.dummyName("bob", d); got != "mybot" {
+	if got := app.dummyName("bob"); got != "mybot" {
 		t.Errorf("cvar dummyName = %q want mybot", got)
 	}
 }

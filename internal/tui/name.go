@@ -1,9 +1,6 @@
 package tui
 
-import (
-	"strconv"
-	"unicode/utf8"
-)
+import "unicode/utf8"
 
 // maxNameBytes is the usable player-name length: Teeworlds MAX_NAME_LENGTH is 16
 // bytes INCLUDING the null terminator, so 15 bytes of content (§C43/§V93).
@@ -32,23 +29,27 @@ func clipNameTo(s string, n int) string {
 	return string(out)
 }
 
-// deriveDummyName builds a DDNet-style distinct dummy name from the main name:
-// "name(n)" (the Teeworlds/DDNet duplicate-name convention), with the base
-// rune-clipped so the whole result fits maxNameBytes valid utf8 (§C43/§V93).
-func deriveDummyName(main string, n int) string {
-	if n < 1 {
-		n = 1
+// dummyFallbackName is DDNet's default dummy name when no player/dummy name is
+// set (CClient::DummyName(), §C43/§V93).
+const dummyFallbackName = "brainless tee"
+
+// deriveDummyName mirrors DDNet `CClient::DummyName()`: "[D] " + the main player
+// name, rune-clipped to maxNameBytes valid utf8 (the prefix survives, the name
+// tail clips). An empty main name yields DDNet's "brainless tee" fallback. The
+// server dedupes duplicate same-IP names itself, so no client-added index
+// (§C43/§V93).
+func deriveDummyName(main string) string {
+	if main == "" {
+		return dummyFallbackName
 	}
-	suffix := "(" + strconv.Itoa(n) + ")"
-	return clipNameTo(main, maxNameBytes-len(suffix)) + suffix
+	return clipName("[D] " + main)
 }
 
-// dummyName resolves the name for a dummy session: the cl_dummy_name cvar if set
-// (clipped), else a DDNet-style derived distinct name from the main player name,
-// using the session's ordinal as the duplicate index (§C43/§V93).
-func (a *App) dummyName(main string, s *session) string {
+// dummyName resolves the name for a dummy session exactly as DDNet does: the
+// cl_dummy_name cvar if set (clipped), else the "[D] "-derived name (§C43/§V93).
+func (a *App) dummyName(main string) string {
 	if dn := clipName(a.cfgSnap().DummyName); dn != "" {
 		return dn
 	}
-	return deriveDummyName(main, a.sessionOrdinal(s))
+	return deriveDummyName(main)
 }

@@ -30,20 +30,6 @@ type session struct {
 	ddrace      atomic.Bool  // server is DDRace-derived (DDNet caps); gates Pause (§T134/§V94)
 }
 
-// sessionOrdinal returns s's index in the session slice (0 = primary, ≥1 for a
-// dummy) — used as the DDNet-style duplicate index in derived dummy names
-// (§T133/§V93). Returns the slice length if s is not found.
-func (a *App) sessionOrdinal(s *session) int {
-	a.sessMu.Lock()
-	defer a.sessMu.Unlock()
-	for i, e := range a.sessions {
-		if e == s {
-			return i
-		}
-	}
-	return len(a.sessions)
-}
-
 // newSession builds a session with its own State + InputController, wiring the
 // per-tick render + feature dispatch (§T109/§T70) onto its State.
 func (a *App) newSession(name string, state *State, input *InputController) *session {

@@ -30,7 +30,7 @@ func (a *App) DefaultDialer(name, clan, skin string) func(s *session, addr strin
 		// derived distinct name (cl_dummy_name | "name(N)"), not the old " (d)".
 		pname := clipName(name)
 		if s.name == "dummy" {
-			pname = a.dummyName(name, s)
+			pname = a.dummyName(name)
 		}
 		c := client.New(addr,
 			client.WithPlayerInfo(pname, clan, skin, -1),
