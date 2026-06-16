@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jxsl13/teetui/feature"
 	"github.com/jxsl13/teetui/lang"
 )
 
@@ -67,9 +66,19 @@ func isNoContextPing(msg, self string) bool {
 	return strings.TrimSpace(low) == ""
 }
 
+// warlistService is the MINIMAL view of the warlist this feature needs; it is
+// declared here (not in the SDK, §V53) and satisfied structurally by whatever
+// the "warlist" feature Provides.
+type warlistService interface {
+	Relation(name string) string
+	Reason(name string) string
+	NamesWith(relation string) []string
+	ClansWith(relation string) []string
+}
+
 // queryEnv is the read-only state a chat-query answer may use (§T80/§V34).
 type queryEnv struct {
-	warlist     feature.Warlist
+	warlist     warlistService
 	rosterNames []string
 	selfClan    string
 	haveCoords  bool

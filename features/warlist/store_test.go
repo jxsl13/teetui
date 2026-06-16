@@ -55,7 +55,7 @@ func TestStorePersist(t *testing.T) {
 	}
 }
 
-// §T78/§T62: the feature.Warlist string service maps relations to tokens.
+// §T78/§T62: the "warlist" string service maps relations to tokens (§V53).
 func TestStoreService(t *testing.T) {
 	w := newStore()
 	w.Set("e", RelWar)

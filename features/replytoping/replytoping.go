@@ -51,7 +51,7 @@ func (f *replyFeature) reply(h feature.Host) {
 func (f *replyFeature) env(h feature.Host) queryEnv {
 	env := queryEnv{selfClan: h.PlayerClan(), goos: runtime.GOOS}
 	if wl, ok := h.Lookup("warlist"); ok {
-		if w, ok := wl.(feature.Warlist); ok {
+		if w, ok := wl.(warlistService); ok {
 			env.warlist = w
 		}
 	}
@@ -68,10 +68,16 @@ func (f *replyFeature) env(h feature.Host) queryEnv {
 	return env
 }
 
+// pingService is the MINIMAL view of the ping queue this feature needs (§V53),
+// satisfied structurally by whatever the "pings" feature Provides.
+type pingService interface {
+	NextReply() (from, msg string, ok bool)
+}
+
 // lookupPings fetches the pings service (lastping), if present.
-func lookupPings(h feature.Host) (feature.PingStore, bool) {
+func lookupPings(h feature.Host) (pingService, bool) {
 	if v, ok := h.Lookup("pings"); ok {
-		s, ok := v.(feature.PingStore)
+		s, ok := v.(pingService)
 		return s, ok
 	}
 	return nil, false

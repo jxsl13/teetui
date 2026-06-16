@@ -217,6 +217,11 @@ type Host interface {                          // the SUFFICIENT capability surf
   Provide(name string, svc any); Lookup(name string) (any, bool)
 }
 ```
+SERVICES are passed as `any` (V53): the providing feature `Provide`s its concrete
+value; the CONSUMER `Lookup`s by name and type-asserts to a MINIMAL interface it
+declares ITSELF. the public `feature` SDK ⊥ declare feature-specific service
+contracts (⊥ `feature.Warlist`, ⊥ `feature.PingStore`) — those belong to the
+consumer (or the provider's own pkg), keeping the SDK generic & feature-agnostic.
 A feature panic in Provision/hook ⊥ crash core (recover+disable+log, V40/V47).
 `main.go` (sole feature wiring):
 ```
@@ -288,6 +293,7 @@ func main(){ tui.Main() }   // base client provisions all feature.Registered()
 - V50: layout recomputed from live terminal size each render (C17/V30); resize re-clamps the log band; min-size guard (V32) still wins below Wmin×Hmin. (C22)
 - V51: CLI surface = ONLY `-config <file>`; ∀ other setting via the config file (cvars/cmds) or runtime console — ⊥ per-setting flags. missing/partial file → defaults, ⊥ crash. connect protocol version = master/scan entry on browser/LAN join | `connect` arg | default 0.6; ⊥ global version flag. (C23)
 - V52: team join/switch via `client.ActSetTeam{Team}` ONLY (V12) — ⊥ raw team packet. team ids: spectators=-1, red/game-flock=0, blue=1. non-team game → `join`=team 0. console `team <spectators|red|blue|game>` + `join`; distinct from spectate (V27/§T37, `ActSetSpectator`). exceeds chillerbot terminal (no team-select there). (← GUI client team menu)
+- V53: public `feature` SDK is feature-AGNOSTIC — ⊥ declare any feature-specific service contract (`feature.Warlist`, `feature.PingStore`, …). cross-feature services flow through `Provide(name, any)` + `Lookup(name) any`, the CONSUMER declaring the minimal interface it needs and type-asserting. warlist/lastping/etc are normal features that USE the SDK, ⊥ part of it. (C21; extends V43/V47)
 
 ## §T — tasks
 
@@ -384,6 +390,7 @@ T89|x|config-file exec: teeworlds-style `.cfg` parser (one `command [args]` per 
 T90|x|reduce CLI to `-config <file>` only: delete all other flags from `main.go`; load+exec the cfg if given else defaults; ⊥ auto-connect when no `connect` cmd → open browser|C23,V51,I.cli
 T91|x|connect uses per-entry protocol version: browser/LAN join passes master/scan `Version` (verify, already wired); `connect` cmd arg or default 0.6 otherwise; ⊥ global version flag/cvar|C23,V51,V8
 T92|x|feature `features/team` (NEW, exceeds chillerbot — GUI team-select has no terminal equiv): Host.DefineCommand `team <spectators|red|blue|game>` + `join` (+ ?DefineAction key) → Host.Do(ActSetTeam{spectators=-1\|red/game=0\|blue=1}); non-team game → join=team 0; distinct from spectate (§T37). needs Host.DefineCommand (extends §I.feature/T76 host, V47)|C21,V52,V12,I.feature
+T93|x|de-leak SDK: remove `feature.Warlist` + `feature.PingStore` from the public `feature` pkg. providers `Provide` their concrete store; consumers (`features/replytoping`, `features/chatquery` if separate) declare a MINIMAL local interface + type-assert the `Lookup(any)`. SDK stays feature-agnostic; update fakes/tests + README/§I.feature|C21,V53,V43,I.feature
 
 ## §B — bugs
 

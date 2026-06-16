@@ -272,7 +272,8 @@ func (w *Store) Save(path string) error {
 	return os.WriteFile(path, []byte(b.String()), 0o644)
 }
 
-// --- feature.Warlist service adapter (string relations) ---
+// --- "warlist" service adapter (string relations, §V53) ---
+// Provided under the "warlist" name; consumers declare their own minimal view.
 
 func (w *Store) Relation(name string) string {
 	if r := w.Get(name); r != RelNeutral {

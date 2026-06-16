@@ -1,8 +1,8 @@
 // Package lastping tracks the chat lines that pinged us (← chillerbot
 // m_aLastPings, §T83/§T63/§V35). Self-registering feature: OnChat queues pings
 // (newest-first, bounded), optionally shows the latest in the status bar
-// (cl_show_last_ping), and Provides the "pings" service (feature.PingStore) that
-// the reply feature consumes for the H reply.
+// (cl_show_last_ping), and Provides the "pings" service (a *store exposing
+// Newest/NextReply, §V53) that the reply feature consumes for the H reply.
 package lastping
 
 import (
@@ -32,7 +32,7 @@ func (s *store) push(from, msg string) {
 	s.mu.Unlock()
 }
 
-// Newest returns the most recent ping (feature.PingStore).
+// Newest returns the most recent ping ("pings" service, §V53).
 func (s *store) Newest() (string, string, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -43,7 +43,7 @@ func (s *store) Newest() (string, string, bool) {
 }
 
 // NextReply returns the ping at the cursor and advances it (newest → older), so
-// repeated H presses walk back through pending pings (feature.PingStore).
+// repeated H presses walk back through pending pings ("pings" service, §V53).
 func (s *store) NextReply() (string, string, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

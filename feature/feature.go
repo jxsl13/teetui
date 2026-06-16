@@ -107,26 +107,11 @@ type Feature interface {
 	Events
 }
 
-// PingStore is the cross-feature service the lastping feature Provides (under the
-// name "pings") and the reply feature Looks up (§T83/§T79): a newest-first
-// history of chat lines that mentioned us. Newest is for display; NextReply
-// drives the H reply, walking from newest to older on repeated calls (the cursor
-// resets when a new ping arrives).
-type PingStore interface {
-	Newest() (from, msg string, ok bool)
-	NextReply() (from, msg string, ok bool)
-}
-
-// Warlist is the cross-feature service the warlist feature Provides (name
-// "warlist") for the chat-query feature to read (§T78/§T80). Relations are
-// strings ("war"/"peace"/"team"/"" for neutral) so consumers need not import the
-// warlist's relation enum.
-type Warlist interface {
-	Relation(name string) string // "" | "war" | "peace" | "team"
-	Reason(name string) string   // war reason ("" if none)
-	NamesWith(relation string) []string
-	ClansWith(relation string) []string
-}
+// Cross-feature services are passed as `any` through Provide/Lookup (§V53): the
+// providing feature Provides its concrete value under a name, and each consumer
+// declares the MINIMAL interface it needs and type-asserts the looked-up value.
+// The SDK stays feature-agnostic — it declares no feature-specific service
+// contracts (no Warlist, no PingStore); those live with the consumer.
 
 // NopFeature is a no-op Events implementation; embed it so a feature only
 // overrides the events it cares about. (It does NOT supply Name/Provision —

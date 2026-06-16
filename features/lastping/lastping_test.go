@@ -63,7 +63,12 @@ func TestLastPingFeature(t *testing.T) {
 	h := newFakeHost()
 	_ = f.Provision(h)
 
-	svc, ok := h.svc["pings"].(feature.PingStore)
+	// the provided "pings" service exposes Newest/NextReply (§V53: consumer
+	// declares its own minimal view; here we assert the concrete *store).
+	svc, ok := h.svc["pings"].(interface {
+		Newest() (string, string, bool)
+		NextReply() (string, string, bool)
+	})
 	if !ok {
 		t.Fatal("pings service not provided")
 	}
