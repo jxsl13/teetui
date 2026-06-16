@@ -116,8 +116,7 @@ func NewApp(server string, state *State, input *InputController, log *Log) (*App
 	if err := scr.Init(); err != nil { // alt-buffer, raw mode, color caps (§V5)
 		return nil, err
 	}
-	scr.EnableMouse()
-	scr.Clear()
+	scr.Clear() // keyboard-only: mouse never enabled (§C31/§V69)
 	return NewAppWithScreen(scr, server, state, input, log), nil
 }
 
@@ -395,13 +394,9 @@ func (a *App) handle(ev tcell.Event) {
 		// background wake; redraw happens in Run.
 	case *tcell.EventResize:
 		a.scr.Sync() // relayout, no garble (§V18)
-	case *tcell.EventMouse:
-		switch ev.Buttons() {
-		case tcell.WheelUp:
-			a.log.ScrollUp(1)
-		case tcell.WheelDown:
-			a.log.ScrollDown(1)
-		}
+	// No mouse handling (§C31/§V69): teetui is keyboard-only; a mouse event (if a
+	// terminal sends one despite EnableMouse never being called) is inert. Log
+	// scroll is PgUp/PgDn.
 	case *tcell.EventKey:
 		// Features get first refusal on the key (§T76/§V39): a handler returning
 		// true consumes it before teetui's own handling. No-op when none registered.

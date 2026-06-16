@@ -152,7 +152,7 @@ feature module).
   [Console commands](#console-commands-f1).
 - **Remote console / rcon** (`F2`) — masked-password login, admin commands, rcon
   output in the log.
-- **Message log** — scroll with `PageUp`/`PageDown` / mouse wheel.
+- **Message log** — scroll with `PageUp`/`PageDown` (teetui is keyboard-only — no mouse).
 
 ### Chat-helper feature modules
 - **warlist** — mark players war / peace / team (with reasons, clans, folders)
@@ -215,7 +215,7 @@ bindings.
 | `f` | fire |
 | the non-movement set (arrows or `WASD`) | aim (cardinal); both sets pan the map while free-look (`G`) is on |
 | `F5` / `F6` | vote yes / no |
-| `PgUp` / `PgDn` / wheel | scroll log |
+| `PgUp` / `PgDn` | scroll log |
 | `Ctrl-U` / `Ctrl-K` / `Ctrl-W` | kill line-before / -after / word (input) |
 | `Ctrl-R` | reverse-i-search input history |
 | `q` / `Esc` / `Ctrl-C` | quit |
