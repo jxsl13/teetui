@@ -1,7 +1,6 @@
 package serverlog
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/jxsl13/teetui/feature"
@@ -81,10 +80,13 @@ func TestServerLogMessages(t *testing.T) {
 	if last(h) != "'bob' died" {
 		t.Errorf("death = %q", last(h))
 	}
-	// id fallback when the roster has no name (§V26).
-	f.OnPlayerLeave(h, feature.PlayerLeaveEvent{ClientID: 3})
-	if !strings.Contains(last(h), "'#3'") {
-		t.Errorf("id fallback = %q", last(h))
+	// §B19/§V91: a leave whose name is unknown (id-only fallback) is SUPPRESSED —
+	// no "'#3' has left the game" noise. Last line stays the previous death.
+	before := len(h.logs)
+	f.OnPlayerLeave(h, feature.PlayerLeaveEvent{ClientID: 3}) // nameless roster entry
+	f.OnPlayerLeave(h, feature.PlayerLeaveEvent{ClientID: 9}) // not in roster at all
+	if len(h.logs) != before {
+		t.Errorf("id-only leave should be suppressed, got %v", h.logs[before:])
 	}
 }
 

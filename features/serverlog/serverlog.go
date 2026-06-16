@@ -30,14 +30,16 @@ func (f serverLog) enabled(h feature.API) bool {
 	return v == "1" || v == "true" || v == "on"
 }
 
-// nameOf resolves a client id to its roster name. For the LOCAL player it falls
-// back to our own configured name (the roster entry can be nameless, §B14/§V26),
-// and only then to "#id".
-func nameOf(h feature.API, id int) string {
+// resolveName resolves a client id to its REAL name (roster name, or our own
+// configured name for the local nameless entry, §B14/§V26). ok=false means no
+// real name is known — only the "#id" placeholder applies; callers that would
+// emit pure noise (a leave of a never-named/phantom slot, §B19/§V91) suppress
+// the line instead of printing "'#id'".
+func resolveName(h feature.API, id int) (string, bool) {
 	for _, p := range h.Roster() {
 		if p.ClientID == id {
 			if p.Name != "" {
-				return p.Name
+				return p.Name, true
 			}
 			break
 		}
@@ -45,10 +47,17 @@ func nameOf(h feature.API, id int) string {
 	// The local player's roster name may be empty even though we know it (§B14).
 	if st, ok := h.Tick(); ok && id == st.LocalID {
 		if n := h.PlayerName(); n != "" {
-			return n
+			return n, true
 		}
 	}
-	return fmt.Sprintf("#%d", id)
+	return fmt.Sprintf("#%d", id), false
+}
+
+// nameOf resolves a client id to a displayable name, falling back to "#id" when
+// the real name is unknown (join/team/kill keep the placeholder, §V26).
+func nameOf(h feature.API, id int) string {
+	n, _ := resolveName(h, id)
+	return n
 }
 
 func (f serverLog) OnPlayerJoin(h feature.API, e feature.PlayerJoinEvent) {
@@ -66,11 +75,15 @@ func (f serverLog) OnPlayerLeave(h feature.API, e feature.PlayerLeaveEvent) {
 	if !f.enabled(h) {
 		return
 	}
+	name, ok := resolveName(h, e.ClientID)
+	if !ok {
+		return // never-named/phantom slot → suppress "'#id' has left the game" noise (§B19/§V91)
+	}
 	if e.Reason != "" {
-		h.Log(fmt.Sprintf("'%s' has left the game (%s)", nameOf(h, e.ClientID), e.Reason))
+		h.Log(fmt.Sprintf("'%s' has left the game (%s)", name, e.Reason))
 		return
 	}
-	h.Log(fmt.Sprintf("'%s' has left the game", nameOf(h, e.ClientID)))
+	h.Log(fmt.Sprintf("'%s' has left the game", name))
 }
 
 func (f serverLog) OnTeamChange(h feature.API, e feature.TeamChangeEvent) {
