@@ -69,6 +69,8 @@ type App struct {
 	panX, panY int            // free-look camera pan offset, in tiles (§T94)
 	camera     cameraSmoother // eases the rendered camera center (§T43)
 	help       bool
+	escMenu    escMenu     // DDNet-style overlay action bar (§T111/§V74)
+	userDisc   atomic.Bool // user-initiated disconnect: suppress auto-reconnect (§T111)
 	scoreboard bool
 	hookOn     bool
 	drawFrame  int // advances each redraw; drives the connecting spinner (§T33)
@@ -242,7 +244,28 @@ func (a *App) ShowDisconnect(reason string) {
 	if a.quitting() {
 		return
 	}
+	// A user-initiated disconnect (Esc menu) returns to the browser, no reconnect.
+	if a.userDisc.Swap(false) {
+		a.joining.Store(false)
+		a.openBrowser()
+		return
+	}
 	go a.reconnect()
+}
+
+// disconnectUser tears down the current session at the user's request (Esc-menu
+// Disconnect, §T111) without auto-reconnecting; closing the client fires
+// OnDisconnect → ShowDisconnect, which sees the flag and opens the browser.
+func (a *App) disconnectUser() {
+	a.userDisc.Store(true)
+	if a.frontendCancel != nil {
+		a.frontendCancel()
+		a.frontendCancel = nil
+	}
+	if c := a.cli.Load(); c != nil {
+		_ = c.Close()
+	}
+	a.connected.Store(false)
 }
 
 // quitting reports whether Stop has been called (the quit channel is closed), so
@@ -417,6 +440,12 @@ func (a *App) handle(ev tcell.Event) {
 	// terminal sends one despite EnableMouse never being called) is inert. Log
 	// scroll is PgUp/PgDn.
 	case *tcell.EventKey:
+		// The Esc overlay menu captures all keys while open (§T111/§V74), before
+		// features or mode handlers see them.
+		if a.escMenu.open {
+			a.handleEscMenu(ev)
+			return
+		}
 		// Features get first refusal on the key (§T76/§V39): a handler returning
 		// true consumes it before teetui's own handling. No-op when none registered.
 		if feature.FireKey(a.api(), featureKey(ev)) {
@@ -503,6 +532,12 @@ func (a *App) handleNormal(ev *tcell.EventKey) {
 	// while active (§T94/§V54). Intercept BEFORE the keymap so a/s/d (move) and
 	// the arrows (aim) are repurposed to panning; the toggle key falls through.
 	if a.freeLook && a.handleFreeLook(ev) {
+		return
+	}
+	// Esc opens the overlay action menu while connected (§T111/§V74) — instead of
+	// quitting. Idle/disconnected Esc keeps its keymap meaning (quit).
+	if ev.Key() == tcell.KeyEscape && a.connected.Load() {
+		a.openEscMenu()
 		return
 	}
 	// Movement/aim router (§T104/§V66): WASD + arrows drive jump/left/stop/right
@@ -1340,6 +1375,7 @@ func (a *App) draw() {
 	if popup.active() {
 		drawPopup(a.scr, w, h, popup)
 	}
+	a.drawEscMenu(w) // top overlay action bar (§T111/§V74)
 	a.scr.Show()
 }
 
