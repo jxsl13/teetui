@@ -64,7 +64,7 @@ func (a *App) DefaultDialer(name, clan, skin string) func(s *session, addr strin
 		})
 		c.OnBroadcast(func(_ *client.Client, e packet.EventBroadcast) {
 			feature.FireBroadcast(a.api(), e.Text)
-			a.log.Addf(StyleSystem, ">> %s", e.Text)
+			a.setBroadcast(e.Text) // top-center fading overlay, not a log line (§T121/§V82)
 		})
 		c.OnKill(func(_ *client.Client, e packet.EventKill) {
 			feature.FireKill(a.api(), feature.KillEvent{

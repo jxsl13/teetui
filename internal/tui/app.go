@@ -68,6 +68,8 @@ type App struct {
 	panX, panY int            // free-look camera pan offset, in tiles (§T94)
 	camera     cameraSmoother // eases the rendered camera center (§T43)
 	help       bool
+	bcast      string      // current server broadcast text (§T121), "" = none
+	bcastUntil time.Time   // broadcast hides after this (DDNet ~10s, §V82)
 	escMenu    escMenu     // DDNet-style overlay action bar (§T111/§V74)
 	userDisc   atomic.Bool // user-initiated disconnect: suppress auto-reconnect (§T111)
 	scoreboard bool
@@ -1409,7 +1411,8 @@ func (a *App) draw() {
 	if popup.active() {
 		drawPopup(a.scr, w, h, popup)
 	}
-	a.drawEscMenu(w) // top overlay action bar (§T111/§V74)
+	a.drawBroadcast(w, h) // transient server-broadcast overlay (§T121/§V82)
+	a.drawEscMenu(w)      // top overlay action bar (§T111/§V74)
 	a.scr.Show()
 }
 
