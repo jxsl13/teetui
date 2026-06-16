@@ -53,6 +53,11 @@ func (a *App) buildEscMenuItems() []menuItem {
 			menuItem{"Pause", func() { a.sendChat("/pause", false) }},
 		)
 	}
+	// Connect dummy (§T115) — only when the server allows dummies (per-IP limit is
+	// enforced server-side, V76).
+	if c := a.cur().cli.Load(); c != nil && c.Capabilities().AllowDummy {
+		items = append(items, menuItem{"Connect dummy", a.connectDummy})
+	}
 	items = append(items, menuItem{"Disconnect", a.disconnectUser})
 	// Follow list (§T114): with dummies connected, list every own client; the
 	// active one is marked. Selecting follows it = render from its perspective.

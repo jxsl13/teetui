@@ -144,3 +144,28 @@ func TestEscMenuFollow(t *testing.T) {
 }
 
 func (a *App) state0Observe(st client.TickState) { a.sessions[0].state.Observe(nil, st) }
+
+// §T115/§V76: connectDummy adds a session and follows it; no Connect-dummy item
+// when there is no client (so no capabilities).
+func TestConnectDummy(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.cur().connected.Store(true)
+	app.state0Observe(client.TickState{})
+
+	// No client → no "Connect dummy" button (caps unknown).
+	app.openEscMenu()
+	if hasLabel(app, "Connect dummy") {
+		t.Error("Connect dummy shown without a client/capabilities")
+	}
+
+	// connectDummy wiring: with a server set it appends + follows a new session.
+	app.cur().server = "srv:8303"
+	before := len(app.sessions)
+	app.connectDummy()
+	if len(app.sessions) != before+1 {
+		t.Fatalf("connectDummy did not add a session: %d", len(app.sessions))
+	}
+	if app.cur().name != "dummy" {
+		t.Errorf("connectDummy did not follow the new dummy (active=%q)", app.cur().name)
+	}
+}

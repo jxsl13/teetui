@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"sync/atomic"
+	"time"
 
 	"github.com/jxsl13/teetui/feature"
 	"github.com/jxsl13/twclient/client"
@@ -91,6 +92,22 @@ func (a *App) dropSession(s *session) {
 			break
 		}
 	}
+}
+
+// connectDummy opens an additional connection ("dummy") to the current server
+// and follows it (§T115/§V76). The server's per-IP dummy limit is enforced
+// server-side; a rejected dummy is dropped without disturbing the primary.
+func (a *App) connectDummy() {
+	cur := a.cur()
+	addr, ver := cur.server, cur.version
+	if addr == "" {
+		return
+	}
+	s := a.newSession("dummy", nil, nil)
+	s.input.SetHold(time.Duration(a.cfg.InputHoldMs) * time.Millisecond)
+	i := a.addSession(s)
+	a.joinSession(s, addr, ver, true)
+	a.setActive(i) // follow the new dummy
 }
 
 // isPrimary reports whether s is the main session (index 0).

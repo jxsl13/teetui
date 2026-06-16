@@ -184,6 +184,15 @@ func TestE2EUI(t *testing.T) {
 				refuteScreen(t, app, sim, "help closed", "teetui — keys")
 			})
 
+			t.Run("esc_menu", func(t *testing.T) {
+				// Connected → Esc opens the overlay action bar (§T111/§V74).
+				keySpecial(app, tcell.KeyEscape)
+				mustScreen(t, app, sim, "esc menu open", "Disconnect")
+				mustScreen(t, app, sim, "esc menu hint", "Esc close")
+				keySpecial(app, tcell.KeyEscape) // close so later subtests run in normal mode
+				refuteScreen(t, app, sim, "esc menu closed", "Esc close")
+			})
+
 			t.Run("visual_toggle", func(t *testing.T) {
 				keyRune(app, 'v') // visual off → logs fill the body, game hidden (§C22)
 				refuteScreen(t, app, sim, "game hidden when visual off", "x:")
