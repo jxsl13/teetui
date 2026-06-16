@@ -191,3 +191,30 @@ jobs:
       - name: Teardown
         if: always()
         run: docker compose -p "$COMPOSE_PROJECT" -f e2e/docker-compose.yml down
+
+  artifacts:
+    name: snapshot binaries (cross-OS, static)
+    runs-on: ubuntu-latest
+    # Build the cross-OS static binaries on every push/PR and upload them as
+    # workflow artifacts (§T122/§C38/§V83). The tag→release flow lives in
+    # release.yml (goreleaser release → GitHub Release, permanent).
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.x
+          cache: true
+      - name: GoReleaser build (snapshot, CGO_ENABLED=0)
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2'
+          args: build --snapshot --clean
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: teetui-binaries-${{ github.sha }}
+          path: dist/**/teetui*
+          if-no-files-found: error
