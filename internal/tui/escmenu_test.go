@@ -28,7 +28,7 @@ func hasLabel(a *App, label string) bool {
 // §T111/§V74: Esc opens the action bar only when connected; Esc closes it.
 func TestEscMenuToggle(t *testing.T) {
 	app, _ := newTestApp(t)
-	app.connected.Store(true)
+	app.cur().connected.Store(true)
 
 	app.handle(sk(tcell.KeyEscape))
 	if !app.escMenu.open {
@@ -44,10 +44,10 @@ func TestEscMenuToggle(t *testing.T) {
 // Kill/Pause; Disconnect is always present.
 func TestEscMenuContextItems(t *testing.T) {
 	app, _ := newTestApp(t)
-	app.connected.Store(true)
+	app.cur().connected.Store(true)
 
 	// Solo, spectating (no local character).
-	app.state.Observe(nil, client.TickState{})
+	app.cur().state.Observe(nil, client.TickState{})
 	app.openEscMenu()
 	if !hasLabel(app, "Join game") || !hasLabel(app, "Spectate") {
 		t.Errorf("solo menu = %v", menuLabels(app))
@@ -62,7 +62,7 @@ func TestEscMenuContextItems(t *testing.T) {
 	// Team mode, in-game (has a character).
 	st := client.TickState{LocalID: 0, Players: map[int]client.CharacterState{0: {}}}
 	st.GameInfo.GameFlags = gameflagTeams
-	app.state.Observe(nil, st)
+	app.cur().state.Observe(nil, st)
 	app.openEscMenu()
 	if !hasLabel(app, "Join red") || !hasLabel(app, "Join blue") {
 		t.Errorf("team menu = %v", menuLabels(app))
@@ -75,7 +75,7 @@ func TestEscMenuContextItems(t *testing.T) {
 // §T111: focus nav wraps; Enter runs the focused item and closes.
 func TestEscMenuNavAndActivate(t *testing.T) {
 	app, _ := newTestApp(t)
-	app.connected.Store(true)
+	app.cur().connected.Store(true)
 	ran := ""
 	app.escMenu = escMenu{open: true, items: []menuItem{
 		{"a", func() { ran = "a" }},
@@ -101,8 +101,8 @@ func TestEscMenuNavAndActivate(t *testing.T) {
 // §T111: the rendered bar shows the buttons and the key hint.
 func TestEscMenuRenders(t *testing.T) {
 	app, sim := newTestApp(t)
-	app.connected.Store(true)
-	app.state.Observe(nil, client.TickState{})
+	app.cur().connected.Store(true)
+	app.cur().state.Observe(nil, client.TickState{})
 	app.openEscMenu()
 	app.draw()
 	out := dumpSim(sim)

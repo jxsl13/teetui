@@ -19,15 +19,22 @@ import (
 //
 // Rendering and input are bound via WithObserver(state)/WithController(input).
 // main and the e2e harness share this so both drive identical callback paths.
-func (a *App) DefaultDialer(name, clan, skin string) func(addr string, ver packet.Version) *client.Client {
+func (a *App) DefaultDialer(name, clan, skin string) func(s *session, addr string, ver packet.Version) *client.Client {
 	a.playerClan = clan // for chat-query answers (§T62)
-	return func(addr string, v packet.Version) *client.Client {
+	return func(s *session, addr string, v packet.Version) *client.Client {
+		// Each session binds its OWN Observer/Controller so a dummy renders/controls
+		// independently (§T113). A dummy uses a distinct name so the server's per-IP
+		// dummy gate accepts it.
+		pname := name
+		if s.name == "dummy" {
+			pname = name + " (d)"
+		}
 		c := client.New(addr,
-			client.WithPlayerInfo(name, clan, skin, -1),
+			client.WithPlayerInfo(pname, clan, skin, -1),
 			client.WithVersion(v),
 			client.WithPrediction(true),
-			client.WithObserver(a.state),
-			client.WithController(a.input),
+			client.WithObserver(s.state),
+			client.WithController(s.input),
 		)
 		c.OnChat(func(cc *client.Client, e packet.EventChat) {
 			if a.IsOwnEcho(e.ClientID, e.Msg) {
@@ -85,7 +92,7 @@ func (a *App) DefaultDialer(name, clan, skin string) func(addr string, ver packe
 			a.log.Addf(StyleSystem, "rcon> %s", e.Line)
 		})
 		c.OnDisconnect(func(_ *client.Client, r client.DisconnectReason) {
-			a.ShowDisconnect(r.Text)
+			a.onDisconnect(s, r.Text) // route to THIS session (§T113)
 		})
 		return c
 	}

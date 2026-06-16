@@ -82,7 +82,7 @@ func (a *App) handleFreeLook(ev *tcell.EventKey) bool {
 func (a *App) panBy(dx, dy int) {
 	a.panX += dx
 	a.panY += dy
-	st, _ := a.state.Get()
+	st, _ := a.cur().state.Get()
 	cx, cy, ok := cameraCenter(st)
 	if !ok || st.Map == nil {
 		return
@@ -134,24 +134,24 @@ func (a *App) handleMoveAim(ev *tcell.EventKey) bool {
 	if isMove {
 		switch dir {
 		case dirUp:
-			a.input.PressJump()
+			a.cur().input.PressJump()
 		case dirLeft:
-			a.input.PressLeft()
+			a.cur().input.PressLeft()
 		case dirDown:
-			a.input.PressStop()
+			a.cur().input.PressStop()
 		case dirRight:
-			a.input.PressRight()
+			a.cur().input.PressRight()
 		}
 	} else {
 		switch dir {
 		case dirUp:
-			a.input.SetAim(0, -aimReach)
+			a.cur().input.SetAim(0, -aimReach)
 		case dirLeft:
-			a.input.SetAim(-aimReach, 0)
+			a.cur().input.SetAim(-aimReach, 0)
 		case dirDown:
-			a.input.SetAim(0, aimReach)
+			a.cur().input.SetAim(0, aimReach)
 		case dirRight:
-			a.input.SetAim(aimReach, 0)
+			a.cur().input.SetAim(aimReach, 0)
 		}
 	}
 	return true

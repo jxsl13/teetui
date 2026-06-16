@@ -62,7 +62,7 @@ func TestFreeLookSuppressesTeeInput(t *testing.T) {
 	app, _ := newTestApp(t)
 	app.handle(rk('G'))
 
-	base := app.input.OnTick(nil, client.TickState{})[0]
+	base := app.cur().input.OnTick(nil, client.TickState{})[0]
 	// move (a/d/s), jump (space), fire (f), hook (h), kill (k), emote (e),
 	// weapons (1-6), aim (arrows) — all repurposed or dropped, none reach input.
 	for _, ev := range []*tcell.EventKey{
@@ -71,7 +71,7 @@ func TestFreeLookSuppressesTeeInput(t *testing.T) {
 	} {
 		app.handle(ev)
 	}
-	after := app.input.OnTick(nil, client.TickState{})[0]
+	after := app.cur().input.OnTick(nil, client.TickState{})[0]
 	if base != after {
 		t.Errorf("tee input changed during free-look:\n base=%#v\nafter=%#v", base, after)
 	}

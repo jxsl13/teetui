@@ -18,7 +18,7 @@ func TestTickRequestsRedraw(t *testing.T) {
 	}
 
 	// An observed tick (as twclient's frontend delivers) must post a wake.
-	app.state.Observe(nil, client.TickState{})
+	app.cur().state.Observe(nil, client.TickState{})
 	if !sim.HasPendingEvent() {
 		t.Error("a game tick did not request a redraw (no wake on tick)")
 	}

@@ -34,17 +34,16 @@ const (
 // connected) are guarded (atomic / mu) so there is no data race (§V4, §V8).
 type App struct {
 	scr            tcell.Screen
-	state          *State
-	input          *InputController
 	log            *Log
-	server         string
-	version        packet.Version // protocol of the current/last Join, for reconnect (§T50)
-	connectTimeout time.Duration  // handshake timeout (0 = DefaultConnectTimeout, §T54)
+	connectTimeout time.Duration // handshake timeout (0 = DefaultConnectTimeout, §T54)
 
-	cli           atomic.Pointer[client.Client]
-	connected     atomic.Bool
-	joining       atomic.Bool  // a connect handshake is in flight (§B9); idle ≠ connecting
-	reconnecting  atomic.Bool  // an auto-reconnect is in flight (§T25)
+	// sessions are the open connections (primary + dummies, §C36); the ACTIVE one
+	// is rendered + controlled (§V77). Guarded by sessMu (slice + active).
+	sessions []*session
+	active   int
+	sessMu   sync.Mutex
+
+	reconnecting  atomic.Bool  // an auto-reconnect of the primary is in flight (§T25)
 	reconnAttempt atomic.Int32 // auto-reconnect attempt counter (§T25)
 
 	mode     int
@@ -75,9 +74,10 @@ type App struct {
 	hookOn     bool
 	drawFrame  int // advances each redraw; drives the connecting spinner (§T33)
 
-	browser        *Browser
-	dialer         func(addr string, ver packet.Version) *client.Client
-	frontendCancel context.CancelFunc // stops RunFrontends of the current session
+	browser *Browser
+	// dialer builds a client bound to a given session's Observer/Controller, with
+	// callbacks captured for that session (§T113). main + e2e inject it.
+	dialer func(s *session, addr string, ver packet.Version) *client.Client
 
 	pendingAddr string         // connect requested by config before Start (§T89)
 	pendingVer  packet.Version // protocol for the pending connect
@@ -130,10 +130,7 @@ func NewApp(server string, state *State, input *InputController, log *Log) (*App
 func NewAppWithScreen(scr tcell.Screen, server string, state *State, input *InputController, log *Log) *App {
 	a := &App{
 		scr:      scr,
-		state:    state,
-		input:    input,
 		log:      log,
-		server:   server,
 		histAll:  NewHistory(64),
 		histTeam: NewHistory(64),
 		histCon:  NewHistory(64),
@@ -152,15 +149,12 @@ func NewAppWithScreen(scr tcell.Screen, server string, state *State, input *Inpu
 		featActKey:  map[tcell.Key]func(){},
 		services:    map[string]any{},
 	}
-	// Drive feature OnTick handlers from the observer (§T70/§T76); the dispatch
-	// is a no-op when no feature is registered.
-	a.state.SetTickHook(func(st client.TickState) {
-		feature.FireTick(a.api(), st) // no-op when no feature is registered
-		// Each tick requests a redraw so the live view animates (§T109/§V72); the
-		// fps limiter coalesces these to cl_max_fps (V42). Ticks only arrive while
-		// connected, so idle never redraws (V71).
-		a.wake()
-	})
+	// The primary session owns the passed-in render state + input controller; its
+	// State drives feature OnTick + per-tick redraw (§T70/§T109, set in newSession).
+	primary := a.newSession("main", state, input)
+	primary.server = server
+	a.sessions = []*session{primary}
+	a.active = 0
 	a.loadHistory()
 	if p, err := configDir(); err == nil {
 		_ = a.browser.LoadFavorites(filepath.Join(p, "favorites.txt"))
@@ -212,60 +206,75 @@ func (a *App) histBySlug() map[string]*History {
 }
 
 // SetClient installs the connected client for chat/input/rcon sends.
-func (a *App) SetClient(c *client.Client) { a.cli.Store(c) }
+func (a *App) SetClient(c *client.Client) { a.cur().cli.Store(c) }
 
 // Client returns the currently active client (may differ after a browser join).
-func (a *App) Client() *client.Client { return a.cli.Load() }
+func (a *App) Client() *client.Client { return a.cur().cli.Load() }
 
 // SetName records the local player name for ping detection (§T23).
 func (a *App) SetName(name string) { a.playerName = name }
 
 // SetDialer installs the factory used to (re)build a client when joining a
-// server from the browser (§T18). main supplies it so callbacks stay wired.
-func (a *App) SetDialer(fn func(addr string, ver packet.Version) *client.Client) { a.dialer = fn }
+// server (§T18/§T113). main supplies it so callbacks stay wired.
+func (a *App) SetDialer(fn func(s *session, addr string, ver packet.Version) *client.Client) {
+	a.dialer = fn
+}
 
 // SetConnected updates the status indicator.
-func (a *App) SetConnected(b bool) { a.connected.Store(b) }
+func (a *App) SetConnected(b bool) { a.cur().connected.Store(b) }
 
-// ShowDisconnect raises the disconnect popup and kicks off an auto-reconnect to
-// the same server, surfacing "reconnecting #N" in the status bar (§T25/§V11).
-// Safe to call from a twclient callback goroutine (§V4); it wakes the render
-// loop. A user-initiated quit suppresses the reconnect.
-func (a *App) ShowDisconnect(reason string) {
-	a.connected.Store(false)
+// ShowDisconnect handles a disconnect of the active session (external/test entry,
+// §T25/§V11). Real callbacks use onDisconnect with the specific session.
+func (a *App) ShowDisconnect(reason string) { a.onDisconnect(a.cur(), reason) }
+
+// onDisconnect handles session s dropping. A dummy is simply removed (§V77); the
+// primary raises the disconnect popup and auto-reconnects — unless the user asked
+// to disconnect (→ browser) or the app is quitting. Safe from a twclient callback
+// goroutine (§V4).
+func (a *App) onDisconnect(s *session, reason string) {
+	s.connected.Store(false)
+	s.joining.Store(false)
+	feature.FireDisconnect(a.api(), reason) // notify feature modules (§T76)
+
+	if !a.isPrimary(s) { // a dummy dropped — just remove it (§V77)
+		a.log.Addf(StyleSystem, "dummy '%s' disconnected", s.name)
+		a.dropSession(s)
+		a.wake()
+		return
+	}
+
 	a.camera.reset() // next session snaps the camera, no slide across the map
 	a.exitFreeLook() // drop free-look on disconnect; next session locks to tee (§V54)
-	a.mu.Lock()
-	a.popup = disconnectPopup(reason)
-	a.mu.Unlock()
-	a.wake()
-
-	feature.FireDisconnect(a.api(), reason) // notify feature modules (§T76)
 	if a.quitting() {
 		return
 	}
 	// A user-initiated disconnect (Esc menu) returns to the browser, no reconnect.
 	if a.userDisc.Swap(false) {
-		a.joining.Store(false)
 		a.openBrowser()
+		a.wake()
 		return
 	}
+	a.mu.Lock()
+	a.popup = disconnectPopup(reason)
+	a.mu.Unlock()
+	a.wake()
 	go a.reconnect()
 }
 
-// disconnectUser tears down the current session at the user's request (Esc-menu
+// disconnectUser tears down the active session at the user's request (Esc-menu
 // Disconnect, §T111) without auto-reconnecting; closing the client fires
-// OnDisconnect → ShowDisconnect, which sees the flag and opens the browser.
+// OnDisconnect → onDisconnect, which sees the flag and opens the browser.
 func (a *App) disconnectUser() {
 	a.userDisc.Store(true)
-	if a.frontendCancel != nil {
-		a.frontendCancel()
-		a.frontendCancel = nil
+	s := a.cur()
+	if s.cancel != nil {
+		s.cancel()
+		s.cancel = nil
 	}
-	if c := a.cli.Load(); c != nil {
+	if c := s.cli.Load(); c != nil {
 		_ = c.Close()
 	}
-	a.connected.Store(false)
+	s.connected.Store(false)
 }
 
 // quitting reports whether Stop has been called (the quit channel is closed), so
@@ -282,12 +291,12 @@ func (a *App) quitting() bool {
 // connStatus snapshots the connection state for the status bar (§T25).
 // connecting reports whether a connect handshake or auto-reconnect is in flight
 // (≠ idle). At idle teetui shows "not connected", never "connecting" (§B9).
-func (a *App) connecting() bool { return a.joining.Load() || a.reconnecting.Load() }
+func (a *App) connecting() bool { return a.cur().joining.Load() || a.reconnecting.Load() }
 
 // scenePlaceholder is the game-window text when there is no map yet: "connecting…"
 // while joining or connected-but-loading, else an idle hint (§B9).
 func (a *App) scenePlaceholder() string {
-	if a.connected.Load() || a.connecting() {
+	if a.cur().connected.Load() || a.connecting() {
 		return "connecting…"
 	}
 	return "not connected — press B for the server browser"
@@ -295,9 +304,9 @@ func (a *App) scenePlaceholder() string {
 
 func (a *App) connStatus() connStatus {
 	return connStatus{
-		connected:    a.connected.Load(),
+		connected:    a.cur().connected.Load(),
 		reconnecting: a.reconnecting.Load(),
-		joining:      a.joining.Load(),
+		joining:      a.cur().joining.Load(),
 		attempt:      int(a.reconnAttempt.Load()),
 	}
 }
@@ -305,10 +314,16 @@ func (a *App) connStatus() connStatus {
 // wake nudges the event loop so background state changes redraw promptly.
 func (a *App) wake() { _ = a.scr.PostEvent(tcell.NewEventInterrupt(nil)) }
 
-// Stop persists history + warlist, tears the screen down and unblocks Run.
+// Stop persists history + warlist, tears the screen down and unblocks Run. It
+// closes ALL sessions (primary + dummies, §V77) so no goroutine/socket leaks.
 func (a *App) Stop() {
-	if a.frontendCancel != nil {
-		a.frontendCancel()
+	for _, s := range a.sessions {
+		if s.cancel != nil {
+			s.cancel()
+		}
+		if c := s.cli.Load(); c != nil {
+			_ = c.Close()
+		}
 	}
 	feature.CloseAll(a.api()) // release feature resources on shutdown (§T101/§V62)
 	a.saveHistory()
@@ -336,7 +351,7 @@ func (a *App) drainSends() {
 
 // flushSend performs the actual server send for one dequeued chat line (§T65).
 func (a *App) flushSend(msg string, team bool) {
-	c := a.cli.Load()
+	c := a.cur().cli.Load()
 	if c == nil {
 		return
 	}
@@ -416,7 +431,7 @@ func (a *App) Redraw() { a.draw() }
 
 // Connected reports whether the current session has completed its handshake
 // (status-bar/e2e use).
-func (a *App) Connected() bool { return a.connected.Load() }
+func (a *App) Connected() bool { return a.cur().connected.Load() }
 
 func (a *App) popupActive() bool {
 	a.mu.Lock()
@@ -536,7 +551,7 @@ func (a *App) handleNormal(ev *tcell.EventKey) {
 	}
 	// Esc opens the overlay action menu while connected (§T111/§V74) — instead of
 	// quitting. Idle/disconnected Esc keeps its keymap meaning (quit).
-	if ev.Key() == tcell.KeyEscape && a.connected.Load() {
+	if ev.Key() == tcell.KeyEscape && a.cur().connected.Load() {
 		a.openEscMenu()
 		return
 	}
@@ -571,7 +586,7 @@ func (a *App) handleNormal(ev *tcell.EventKey) {
 		return
 	}
 	if w, ok := weaponForRune(ev.Rune()); ok {
-		a.input.SetWeapon(w)
+		a.cur().input.SetWeapon(w)
 	}
 }
 
@@ -607,7 +622,7 @@ func (a *App) doAction(act KeyAction) {
 	case actLocalConsole:
 		a.enterMode(modeLocalCon)
 	case actRemoteConsole:
-		if c := a.cli.Load(); c != nil && c.RconAuthed() {
+		if c := a.cur().cli.Load(); c != nil && c.RconAuthed() {
 			a.enterMode(modeRcon)
 		} else {
 			a.enterMode(modeRconAuth)
@@ -619,20 +634,20 @@ func (a *App) doAction(act KeyAction) {
 	case actVoteNo:
 		a.do(client.ActVote{Approve: false})
 	case actMoveLeft:
-		a.input.PressLeft()
+		a.cur().input.PressLeft()
 	case actMoveRight:
-		a.input.PressRight()
+		a.cur().input.PressRight()
 	case actMoveStop:
-		a.input.PressStop()
+		a.cur().input.PressStop()
 	case actJump:
-		a.input.PressJump()
+		a.cur().input.PressJump()
 	case actHook:
 		a.hookOn = !a.hookOn
-		a.input.SetHook(a.hookOn)
+		a.cur().input.SetHook(a.hookOn)
 	case actReconnect:
 		a.reconnect()
 	case actFire:
-		a.input.Fire()
+		a.cur().input.Fire()
 	}
 }
 
@@ -768,7 +783,7 @@ func (a *App) completionCandidates() []string {
 	if a.mode == modeLocalCon {
 		return consoleCommands
 	}
-	c := a.cli.Load()
+	c := a.cur().cli.Load()
 	if c == nil {
 		return nil
 	}
@@ -809,7 +824,7 @@ func (a *App) handleSearch(ev *tcell.EventKey) {
 }
 
 func (a *App) do(act client.Action) {
-	if c := a.cli.Load(); c != nil {
+	if c := a.cur().cli.Load(); c != nil {
 		_ = c.Do(act)
 	}
 }
@@ -824,7 +839,7 @@ func (a *App) sendChat(msg string, team bool) {
 	if msg == "" {
 		return
 	}
-	c := a.cli.Load()
+	c := a.cur().cli.Load()
 	if c == nil {
 		return
 	}
@@ -869,7 +884,7 @@ func (a *App) noteSent(msg string) {
 // recently-sent message (so the caller can skip logging it twice, §V29). It
 // matches only the local client id and consumes the record on a hit.
 func (a *App) IsOwnEcho(clientID int, msg string) bool {
-	c := a.cli.Load()
+	c := a.cur().cli.Load()
 	if c == nil || clientID != c.LocalID() {
 		return false
 	}
@@ -968,7 +983,7 @@ func (a *App) Start() {
 		name = "nameless tee"
 	}
 	a.SetName(name)
-	a.input.SetHold(time.Duration(a.cfg.InputHoldMs) * time.Millisecond) // §T110
+	a.cur().input.SetHold(time.Duration(a.cfg.InputHoldMs) * time.Millisecond) // §T110
 	a.SetDialer(a.DefaultDialer(name, a.cfg.PlayerClan, "default"))
 	if a.cfg.ConnectTimeout > 0 {
 		a.SetConnectTimeout(time.Duration(a.cfg.ConnectTimeout) * time.Second)
@@ -1001,7 +1016,7 @@ func (a *App) spectate(name string) {
 // findPlayer returns the client id of the first roster player whose name matches
 // (case-insensitive), or -1.
 func (a *App) findPlayer(name string) int {
-	c := a.cli.Load()
+	c := a.cur().cli.Load()
 	if c == nil {
 		return -1
 	}
@@ -1017,7 +1032,7 @@ func (a *App) findPlayer(name string) int {
 // rconAuth logs in to rcon with the typed password (§T20). RconLogin blocks on
 // the server's auth reply, so it runs off the event loop.
 func (a *App) rconAuth(pw string) {
-	c := a.cli.Load()
+	c := a.cur().cli.Load()
 	if c == nil {
 		a.mode = modeNormal
 		return
@@ -1039,7 +1054,7 @@ func (a *App) rconSend(cmd string) {
 	if cmd == "" {
 		return
 	}
-	c := a.cli.Load()
+	c := a.cur().cli.Load()
 	if c == nil {
 		return
 	}
@@ -1158,40 +1173,54 @@ func (a *App) maybeScanLAN() {
 // Observer (render) and Controller (input) — without it nothing is dispatched
 // (§V22, §B2). RunFrontends uses a long-lived context, distinct from the
 // connect timeout.
+// Join connects the PRIMARY session to addr at ver, dropping any dummies first
+// (a fresh primary join resets to a single session, §T113).
 func (a *App) Join(addr string, ver packet.Version) {
+	a.sessMu.Lock()
+	a.sessions = a.sessions[:1]
+	a.active = 0
+	primary := a.sessions[0]
+	a.sessMu.Unlock()
+	a.joinSession(primary, addr, ver, false)
+}
+
+// joinSession (re)connects session s to addr at ver. It starts the twclient
+// frontend loop (RunFrontends) on success — without it nothing is dispatched
+// (§V22/§B2). isDummy gates per-session vs primary status handling. Safe to call
+// for any session; only OnDisconnect (captured in the dialer) routes back per
+// session.
+func (a *App) joinSession(s *session, addr string, ver packet.Version, isDummy bool) {
 	if a.dialer == nil {
 		return
 	}
-	if a.frontendCancel != nil {
-		a.frontendCancel()
-		a.frontendCancel = nil
+	if s.cancel != nil {
+		s.cancel()
+		s.cancel = nil
 	}
-	if old := a.cli.Load(); old != nil {
+	if old := s.cli.Load(); old != nil {
 		_ = old.Close()
 	}
-	a.connected.Store(false)
-	a.joining.Store(true) // handshake in flight → show "connecting" (§B9)
-	a.server = addr
-	a.version = ver
-	c := a.dialer(addr, ver)
-	a.SetClient(c)
+	s.connected.Store(false)
+	s.joining.Store(true) // handshake in flight → show "connecting" (§B9)
+	s.server = addr
+	s.version = ver
+	c := a.dialer(s, addr, ver)
+	s.cli.Store(c)
 
 	fctx, fcancel := context.WithCancel(context.Background())
-	a.frontendCancel = fcancel
+	s.cancel = fcancel
 
 	a.log.Addf(StyleSystem, "connecting to %s …", addr)
 	go func() {
-		// fctx is the SESSION lifetime: twclient binds the reader + keepalive +
-		// all I/O to the ctx passed to Connect, so it MUST live as long as the
-		// session — cancelling it tears the connection down and the server times
-		// us out (§V25, §B4). The handshake is bounded by a watchdog that cancels
-		// fctx ONLY while still connecting; once connected it never fires.
+		// fctx is the SESSION lifetime: twclient binds the reader + keepalive + all
+		// I/O to the ctx passed to Connect, so it MUST live as long as the session
+		// (§V25, §B4). A watchdog cancels it ONLY while still connecting.
 		stop := make(chan struct{})
 		var timedOut atomic.Bool
 		go func() {
 			select {
 			case <-time.After(a.connTimeout()):
-				if !a.connected.Load() {
+				if !s.connected.Load() {
 					timedOut.Store(true)
 					fcancel() // abort a stuck handshake (does NOT cap a live session)
 				}
@@ -1200,26 +1229,29 @@ func (a *App) Join(addr string, ver packet.Version) {
 		}()
 		if err := c.Connect(fctx); err != nil {
 			close(stop)
-			// Distinguish "we gave up after the timeout" from a real protocol
-			// error, so a slow-but-reachable server reads as a retryable timeout
-			// rather than a scary raw "context canceled" (§V28/§B7).
 			if timedOut.Load() {
 				a.log.Addf(StyleSelf, "%s", connectTimeoutMsg(addr, ver, a.connTimeout()))
 			} else {
 				a.log.Addf(StyleSelf, "%s", connectFailMsg(addr, ver, err))
 			}
-			a.log.Addf(StyleSystem, "press R to reconnect")
-			a.reconnecting.Store(false) // attempt finished (failed) — stop the spinner
-			a.joining.Store(false)      // handshake over (§B9)
+			s.joining.Store(false) // handshake over (§B9)
 			fcancel()
+			if isDummy { // a failed dummy must not disturb the primary (§V76)
+				a.dropSession(s)
+			} else {
+				a.log.Addf(StyleSystem, "press R to reconnect")
+				a.reconnecting.Store(false)
+			}
 			a.wake()
 			return
 		}
-		a.SetConnected(true)
-		a.joining.Store(false) // handshake done (§B9)
-		a.reconnecting.Store(false)
-		a.reconnAttempt.Store(0) // a clean connection resets the attempt count
-		close(stop)              // connected → watchdog must not cancel the live session
+		s.connected.Store(true)
+		s.joining.Store(false) // handshake done (§B9)
+		if !isDummy {
+			a.reconnecting.Store(false)
+			a.reconnAttempt.Store(0) // a clean connection resets the attempt count
+		}
+		close(stop) // connected → watchdog must not cancel the live session
 		a.log.Addf(StyleSystem, "connected.")
 		go c.RunFrontends(fctx)      // drive observer (render) + controller (input)
 		feature.FireConnect(a.api()) // notify feature modules (§T76)
@@ -1265,13 +1297,13 @@ func (a *App) SetLogLines(n int) {
 // counter and flags the reconnecting state for the status bar; Join clears both
 // on a terminal outcome.
 func (a *App) reconnect() {
-	if a.server == "" {
+	if a.cur().server == "" {
 		return
 	}
 	a.reconnAttempt.Add(1)
 	a.reconnecting.Store(true)
 	a.wake()
-	a.Join(a.server, a.version)
+	a.Join(a.cur().server, a.cur().version)
 }
 
 func (a *App) prompt() string {
@@ -1332,7 +1364,7 @@ func (a *App) draw() {
 	}
 
 	lay := Compute(w, h, a.visual, a.cfg.LogLines)
-	st, have := a.state.Get()
+	st, have := a.cur().state.Get()
 
 	// Visual on → game fills the body above the log band; off → the log band
 	// fills the whole body (no game), so there is nothing to draw here (§C22).
@@ -1344,7 +1376,7 @@ func (a *App) draw() {
 		// While a join is in flight (no map/snapshot yet) show the indeterminate
 		// connecting / map-download indicator over the game window (§T33). Only
 		// when actually connecting — idle (never joined) shows no spinner (§B9).
-		if !a.connected.Load() && a.connecting() {
+		if !a.cur().connected.Load() && a.connecting() {
 			drawStr(a.scr, lay.Game.X, lay.Game.Y, lay.Game.W, StyleSystem, connectingLine(a.drawFrame))
 		}
 	}
@@ -1353,7 +1385,7 @@ func (a *App) draw() {
 		drawStr(a.scr, lay.Log.X, lay.Log.Y+i, lay.Log.W, ln.Style, ln.Text)
 	}
 
-	status := statusText(a.modeLabel(), a.server, a.connStatus(), st, have)
+	status := statusText(a.modeLabel(), a.cur().server, a.connStatus(), st, have)
 	// last-ping readout now contributed by features/lastping via AddStatusField.
 	for _, fn := range a.statusFields { // feature status contributions (§T76)
 		if s := fn(); s != "" {

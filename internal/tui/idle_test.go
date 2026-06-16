@@ -25,7 +25,7 @@ func TestIdleNotConnecting(t *testing.T) {
 	}
 
 	// A handshake in flight DOES read as connecting.
-	app.joining.Store(true)
+	app.cur().joining.Store(true)
 	if !app.connecting() {
 		t.Error("joining app should report connecting")
 	}
@@ -37,8 +37,8 @@ func TestIdleNotConnecting(t *testing.T) {
 	}
 
 	// Connected (map not loaded yet) still reads as connecting in the scene.
-	app.joining.Store(false)
-	app.connected.Store(true)
+	app.cur().joining.Store(false)
+	app.cur().connected.Store(true)
 	if got := connLabel(app.connStatus()); got != "connected" {
 		t.Errorf("connected status = %q", got)
 	}

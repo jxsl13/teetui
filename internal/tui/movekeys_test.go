@@ -11,7 +11,7 @@ import (
 // §T104/§V66: cl_move_keys selects which set moves; the other set aims.
 
 func heldInput(a *App) packet.PlayerInput {
-	return a.input.OnTick(nil, client.TickState{})[0].(client.ActInput).Input
+	return a.cur().input.OnTick(nil, client.TickState{})[0].(client.ActInput).Input
 }
 
 func TestMoveKeysWASD(t *testing.T) {

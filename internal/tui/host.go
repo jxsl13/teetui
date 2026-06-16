@@ -58,7 +58,7 @@ func (a *App) provisionFeatures() {
 func (h appAPI) SendChat(msg string, team bool) { h.a.sendChat(msg, team) }
 
 func (h appAPI) Do(act client.Action) error {
-	if c := h.a.cli.Load(); c != nil {
+	if c := h.a.cur().cli.Load(); c != nil {
 		return c.Do(act)
 	}
 	return nil
@@ -69,7 +69,7 @@ func (h appAPI) Log(msg string) { h.a.log.Addf(StyleSystem, "%s", msg) }
 // RconLogin authenticates rcon off the event loop and logs the outcome (§T84);
 // the password is never logged. Async so a feature's OnConnect doesn't block.
 func (h appAPI) RconLogin(password string) {
-	c := h.a.cli.Load()
+	c := h.a.cur().cli.Load()
 	if c == nil || password == "" {
 		return
 	}
@@ -94,16 +94,16 @@ func (h appAPI) DataPath(name string) string {
 }
 
 func (h appAPI) Roster() []client.PlayerState {
-	if c := h.a.cli.Load(); c != nil {
+	if c := h.a.cur().cli.Load(); c != nil {
 		return c.Roster()
 	}
 	return nil
 }
 
-func (h appAPI) Tick() (client.TickState, bool) { return h.a.state.Get() }
+func (h appAPI) Tick() (client.TickState, bool) { return h.a.cur().state.Get() }
 func (h appAPI) PlayerName() string             { return h.a.playerName }
 func (h appAPI) PlayerClan() string             { return h.a.playerClan }
-func (h appAPI) Server() string                 { return h.a.server }
+func (h appAPI) Server() string                 { return h.a.cur().server }
 
 // DefineConfig registers a feature cvar (idempotent: keeps the existing value on
 // re-define so a reload doesn't clobber a user change).

@@ -34,7 +34,7 @@ func (a *App) closeEscMenu() { a.escMenu.open = false }
 // §V75): team vs solo Join buttons, Kill/Pause while in-game, and Disconnect.
 // (Connect-dummy and the follow list are added in §T114/§T115.)
 func (a *App) buildEscMenuItems() []menuItem {
-	st, have := a.state.Get()
+	st, have := a.cur().state.Get()
 	var items []menuItem
 	if teamMode(st) {
 		items = append(items,
