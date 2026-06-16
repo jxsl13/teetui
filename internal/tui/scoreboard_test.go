@@ -10,10 +10,10 @@ import (
 
 // §T17: roster sorts by score desc, ties by client id.
 func TestRosterRowsSort(t *testing.T) {
-	roster := map[int]client.PlayerState{
-		3: {ClientID: 3, Name: "low", Score: 1},
-		1: {ClientID: 1, Name: "tieA", Score: 5},
-		2: {ClientID: 2, Name: "tieB", Score: 5},
+	roster := []client.PlayerState{
+		{ClientID: 3, Name: "low", Score: 1},
+		{ClientID: 1, Name: "tieA", Score: 5},
+		{ClientID: 2, Name: "tieB", Score: 5},
 	}
 	got := rosterRows(roster)
 	if len(got) != 3 {
@@ -74,12 +74,9 @@ func TestDrawScoreboardNoPanic(t *testing.T) {
 	}
 	defer scr.Fini()
 	scr.SetSize(80, 24)
-	st := client.TickState{
-		LocalID: 2,
-		Roster: map[int]client.PlayerState{
-			1: {ClientID: 1, Name: "alice", Clan: "AAA", Score: 3, Present: true},
-			2: {ClientID: 2, Name: "me", Clan: "BBB", Score: 9, Local: true, Present: true},
-		},
+	roster := []client.PlayerState{
+		{ClientID: 1, Name: "alice", Clan: "AAA", Score: 3, Present: true},
+		{ClientID: 2, Name: "me", Clan: "BBB", Score: 9, Local: true, Present: true},
 	}
 	styler := func(name, clan string) (tcell.Style, bool) {
 		if name == "alice" {
@@ -87,6 +84,26 @@ func TestDrawScoreboardNoPanic(t *testing.T) {
 		}
 		return tcell.StyleDefault, false
 	}
-	DrawScoreboard(scr, Rect{0, 0, 50, 10}, st, styler)
-	DrawScoreboard(scr, Rect{0, 0, 50, 10}, st, nil) // nil styler ok
+	DrawScoreboard(scr, Rect{0, 0, 50, 10}, roster, 2, styler)
+	DrawScoreboard(scr, Rect{0, 0, 50, 10}, roster, 2, nil) // nil styler ok
+}
+
+// §B17/§V85: the scoreboard lists players from a populated registry slice.
+func TestScoreboardListsPlayers(t *testing.T) {
+	scr := tcell.NewSimulationScreen("")
+	if err := scr.Init(); err != nil {
+		t.Fatal(err)
+	}
+	defer scr.Fini()
+	scr.SetSize(80, 24)
+	roster := []client.PlayerState{
+		{ClientID: 1, Name: "alice", Score: 3, Present: true},
+		{ClientID: 2, Name: "bob", Score: 9, Present: true},
+	}
+	DrawScoreboard(scr, Rect{0, 0, 50, 10}, roster, 1, nil)
+	scr.Show()
+	out := dumpSim(scr)
+	if !strings.Contains(out, "alice") || !strings.Contains(out, "bob") {
+		t.Errorf("scoreboard missing players:\n%s", out)
+	}
 }

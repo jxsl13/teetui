@@ -37,11 +37,9 @@ func scoreboardCols(width int) (nameW, clanW int) {
 
 // rosterRows returns the roster sorted for display: highest score first, ties
 // broken by client id for stable ordering (§T17). Pure, so it is unit-tested.
-func rosterRows(roster map[int]client.PlayerState) []client.PlayerState {
-	rows := make([]client.PlayerState, 0, len(roster))
-	for _, p := range roster {
-		rows = append(rows, p)
-	}
+func rosterRows(roster []client.PlayerState) []client.PlayerState {
+	rows := make([]client.PlayerState, len(roster))
+	copy(rows, roster)
 	sort.Slice(rows, func(i, j int) bool {
 		if rows[i].Score != rows[j].Score {
 			return rows[i].Score > rows[j].Score
@@ -78,7 +76,7 @@ type nameStyler func(name, clan string) (tcell.Style, bool)
 // with name and clan from the in-session roster (twclient §I.PlayerState). The
 // local player is highlighted; others are tinted by the styler (warlist relation,
 // §T21/§V14). A nil styler disables tinting.
-func DrawScoreboard(s tcell.Screen, r Rect, st client.TickState, styler nameStyler) {
+func DrawScoreboard(s tcell.Screen, r Rect, roster []client.PlayerState, localID int, styler nameStyler) {
 	if r.W < 12 || r.H < 2 {
 		return
 	}
@@ -92,11 +90,11 @@ func DrawScoreboard(s tcell.Screen, r Rect, st client.TickState, styler nameStyl
 	drawStr(s, r.X, r.Y, r.W, StyleStatus, padCol(" "+header, r.W))
 
 	row := 1
-	for _, p := range rosterRows(st.Roster) {
+	for _, p := range rosterRows(roster) {
 		if row >= r.H {
 			break
 		}
-		style := scoreRowStyle(p, st.LocalID, styler)
+		style := scoreRowStyle(p, localID, styler)
 		drawStr(s, r.X, r.Y+row, r.W, style, " "+scoreboardLine(p, nameW, clanW))
 		row++
 	}

@@ -1382,7 +1382,13 @@ func (a *App) draw() {
 	if a.visual && lay.Game.H > 0 {
 		a.drawScene(lay.Game, st)
 		if a.scoreboard && have {
-			DrawScoreboard(a.scr, lay.Game, st, a.nameStyle)
+			// Live registry (same source as chat/serverlog) — st.Roster can be
+			// empty even with players (§B17/§V85).
+			var roster []client.PlayerState
+			if c := a.cur().cli.Load(); c != nil {
+				roster = c.Roster()
+			}
+			DrawScoreboard(a.scr, lay.Game, roster, st.LocalID, a.nameStyle)
 		}
 		// While a join is in flight (no map/snapshot yet) show the indeterminate
 		// connecting / map-download indicator over the game window (§T33). Only
