@@ -54,7 +54,7 @@ func TestObserver(t *testing.T) {
 // §V12: controller emits the held input as an ActInput each tick.
 func TestControllerEmitsInput(t *testing.T) {
 	c := NewInputController()
-	c.SetDirection(1)
+	c.PressRight()
 	acts := c.OnTick(nil, client.TickState{})
 	if len(acts) != 1 {
 		t.Fatalf("acts = %d want 1", len(acts))

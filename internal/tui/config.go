@@ -18,6 +18,7 @@ type Config struct {
 	PlayerClan     string // identity (§T89, player_clan)
 	ConnectTimeout int    // handshake timeout seconds (§T89, cl_connect_timeout)
 	MoveKeys       string // "wasd" | "arrows": which set moves; the other aims (§T104/§V66)
+	InputHoldMs    int    // movement/jump hold window in ms (§T110/§C34)
 }
 
 // NewConfig returns the default configuration. Feature-owned cvars are declared
@@ -31,6 +32,7 @@ func NewConfig() *Config {
 		PlayerClan:     "",
 		ConnectTimeout: 30,     // seconds (= DefaultConnectTimeout)
 		MoveKeys:       "wasd", // WASD move, arrows aim (§T104)
+		InputHoldMs:    350,    // movement/jump hold window (§T110)
 	}
 }
 
@@ -71,6 +73,9 @@ var cvars = []cvar{
 	{"cl_move_keys", "which key set moves the tee: wasd (arrows aim) | arrows (wasd aim)",
 		func(c *Config) string { return c.MoveKeys },
 		func(c *Config, v string) { c.MoveKeys = normMoveKeys(v) }},
+	{"cl_input_hold_ms", "movement/jump hold window in ms (terminal has no key-release; key-repeat refreshes it)",
+		func(c *Config) string { return itoa(c.InputHoldMs) },
+		func(c *Config, v string) { c.InputHoldMs = clampAtoi(v, 50, 2000) }},
 }
 
 // findCvar returns the cvar named name, or nil.

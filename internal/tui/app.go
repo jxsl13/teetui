@@ -584,13 +584,13 @@ func (a *App) doAction(act KeyAction) {
 	case actVoteNo:
 		a.do(client.ActVote{Approve: false})
 	case actMoveLeft:
-		a.input.SetDirection(-1)
+		a.input.PressLeft()
 	case actMoveRight:
-		a.input.SetDirection(1)
+		a.input.PressRight()
 	case actMoveStop:
-		a.input.SetDirection(0)
+		a.input.PressStop()
 	case actJump:
-		a.input.SetJump(true)
+		a.input.PressJump()
 	case actHook:
 		a.hookOn = !a.hookOn
 		a.input.SetHook(a.hookOn)
@@ -933,6 +933,7 @@ func (a *App) Start() {
 		name = "nameless tee"
 	}
 	a.SetName(name)
+	a.input.SetHold(time.Duration(a.cfg.InputHoldMs) * time.Millisecond) // §T110
 	a.SetDialer(a.DefaultDialer(name, a.cfg.PlayerClan, "default"))
 	if a.cfg.ConnectTimeout > 0 {
 		a.SetConnectTimeout(time.Duration(a.cfg.ConnectTimeout) * time.Second)

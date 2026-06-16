@@ -134,13 +134,13 @@ func (a *App) handleMoveAim(ev *tcell.EventKey) bool {
 	if isMove {
 		switch dir {
 		case dirUp:
-			a.input.SetJump(true)
+			a.input.PressJump()
 		case dirLeft:
-			a.input.SetDirection(-1)
+			a.input.PressLeft()
 		case dirDown:
-			a.input.SetDirection(0)
+			a.input.PressStop()
 		case dirRight:
-			a.input.SetDirection(1)
+			a.input.PressRight()
 		}
 	} else {
 		switch dir {
