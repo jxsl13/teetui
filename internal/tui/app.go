@@ -154,6 +154,10 @@ func NewAppWithScreen(scr tcell.Screen, server string, state *State, input *Inpu
 	// is a no-op when no feature is registered.
 	a.state.SetTickHook(func(st client.TickState) {
 		feature.FireTick(a.api(), st) // no-op when no feature is registered
+		// Each tick requests a redraw so the live view animates (§T109/§V72); the
+		// fps limiter coalesces these to cl_max_fps (V42). Ticks only arrive while
+		// connected, so idle never redraws (V71).
+		a.wake()
 	})
 	a.loadHistory()
 	if p, err := configDir(); err == nil {
