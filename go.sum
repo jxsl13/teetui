@@ -4,8 +4,8 @@ github.com/gdamore/encoding v1.0.1 h1:YzKZckdBL6jVt2Gc+5p82qhrGiqMdG/eNs6Wy0u3Uh
 github.com/gdamore/encoding v1.0.1/go.mod h1:0Z0cMFinngz9kS1QfMjCP8TY7em3bZYeeklsSDPivEo=
 github.com/gdamore/tcell/v2 v2.13.10 h1:Afs3JKt83HnhuUKdZ3MnxUgOqQRWftj5JyDqv1LLynA=
 github.com/gdamore/tcell/v2 v2.13.10/go.mod h1:+Wfe208WDdB7INEtCsNrAN6O2m+wsTPk1RAovjaILlo=
-github.com/jxsl13/twclient v0.2.6 h1:LWPVTlGgqCupxO/0UQb+JAIFvDwrlMufdkPDS5Mk+UA=
-github.com/jxsl13/twclient v0.2.6/go.mod h1:GwLbgOAJWyUr2f4mWFsOyUlq0BqMato7rn0bRwtfpXw=
+github.com/jxsl13/twclient v0.2.7 h1:Dt1aTvJ6sUTpFpEZhtc60TGzhIx8DCLJvHkGAF7Vqmw=
+github.com/jxsl13/twclient v0.2.7/go.mod h1:GwLbgOAJWyUr2f4mWFsOyUlq0BqMato7rn0bRwtfpXw=
 github.com/jxsl13/twmap v0.3.0 h1:WKmOFFMAwnlC1nlU3EtdT29+QmxrVcJw21rftT/k6uA=
 github.com/jxsl13/twmap v0.3.0/go.mod h1:C6oDH7vLRqO+ITayIYB9dF9o9DVCSpyUirb9pKD9n90=
 github.com/klauspost/compress v1.18.5 h1:/h1gH5Ce+VWNLSWqPzOVn6XBO+vJbCNGvjoaGBFW2IE=
