@@ -16,7 +16,6 @@ import (
 )
 
 type chatFilter struct {
-	feature.NopFeature
 	mu      sync.Mutex
 	filters []string
 	lastRep time.Time
@@ -24,7 +23,7 @@ type chatFilter struct {
 
 func (*chatFilter) Name() string { return "chatfilter" }
 
-func (f *chatFilter) Provision(h feature.Host) error {
+func (f *chatFilter) Init(h feature.Host) error {
 	h.DefineConfig("cl_chat_spam_filter", "0", "hide spam pings (0=off 1=hide 2=hide+autoreply)")
 	h.DefineConfig("cl_chat_spam_filter_insults", "0", "also hide insults when cl_chat_spam_filter>0 (0/1)")
 	h.DefineCommand("addfilter", "addfilter <text> — hide chat containing text", func(args string) []string {

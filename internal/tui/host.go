@@ -50,7 +50,7 @@ func (a *App) host() feature.Host { return appHost{a} }
 // (§T76). Called once at startup; a feature that errors/panics is disabled by the
 // registry (§V47). No-op when no feature package is imported.
 func (a *App) provisionFeatures() {
-	for _, err := range feature.ProvisionAll(a.host()) {
+	for _, err := range feature.InitAll(a.host()) {
 		a.log.Addf(StyleSelf, "feature disabled: %v", err)
 	}
 }

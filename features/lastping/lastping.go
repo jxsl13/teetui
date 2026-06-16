@@ -57,13 +57,12 @@ func (s *store) NextReply() (string, string, bool) {
 }
 
 type lastPing struct {
-	feature.NopFeature
 	store *store
 }
 
 func (*lastPing) Name() string { return "lastping" }
 
-func (f *lastPing) Provision(h feature.Host) error {
+func (f *lastPing) Init(h feature.Host) error {
 	h.DefineConfig("cl_show_last_ping", "0", "show the most recent chat ping in the status bar (0/1)")
 	h.Provide("pings", f.store)
 	h.AddStatusField(func() string {

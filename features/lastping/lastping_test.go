@@ -61,7 +61,7 @@ func (h *fakeHost) Lookup(name string) (any, bool)      { v, ok := h.svc[name]; 
 func TestLastPingFeature(t *testing.T) {
 	f := &lastPing{store: &store{}}
 	h := newFakeHost()
-	_ = f.Provision(h)
+	_ = f.Init(h)
 
 	// the provided "pings" service exposes Newest/NextReply (§V53: consumer
 	// declares its own minimal view; here we assert the concrete *store).

@@ -22,14 +22,13 @@ import (
 )
 
 type cmdHook struct {
-	feature.NopFeature
 	dir     string
 	timeout time.Duration
 }
 
 func (*cmdHook) Name() string { return "cmdhook" }
 
-func (h *cmdHook) Provision(host feature.Host) error {
+func (h *cmdHook) Init(host feature.Host) error {
 	h.timeout = 2 * time.Second
 	dir := host.DataPath("hooks")
 	if fi, err := os.Stat(dir); err == nil && fi.IsDir() {

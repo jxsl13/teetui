@@ -43,11 +43,11 @@ func teamID(arg string) (int, bool) {
 	return 0, false
 }
 
-type teamFeature struct{ feature.NopFeature }
+type teamFeature struct{}
 
 func (teamFeature) Name() string { return "team" }
 
-func (f teamFeature) Provision(h feature.Host) error {
+func (f teamFeature) Init(h feature.Host) error {
 	h.DefineCommand("team", "team <spectators|red|blue|game> — join/switch team", func(args string) []string {
 		id, ok := teamID(args)
 		if !ok {

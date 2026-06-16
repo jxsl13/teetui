@@ -23,7 +23,7 @@ func (h *fakeHost) DefineAction(name, _ string, _ string, run func()) { h.define
 // §T97/§V57: the join key fires ActSetTeam{0} and logs the outcome.
 func TestJoinGameAction(t *testing.T) {
 	h := &fakeHost{defined: map[string]func(){}}
-	if err := (teamFeature{}).Provision(h); err != nil {
+	if err := (teamFeature{}).Init(h); err != nil {
 		t.Fatalf("provision: %v", err)
 	}
 	run := h.defined["join_game"]

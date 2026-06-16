@@ -8,12 +8,10 @@ import (
 
 // keyEater consumes the 't' key and records what it sees.
 type keyEater struct {
-	feature.NopFeature
 	got []feature.Key
 }
 
-func (*keyEater) Name() string                 { return "keyeater" }
-func (*keyEater) Provision(feature.Host) error { return nil }
+func (*keyEater) Name() string { return "keyeater" }
 func (k *keyEater) OnKey(_ feature.Host, key feature.Key) bool {
 	k.got = append(k.got, key)
 	return key.Rune == 't'

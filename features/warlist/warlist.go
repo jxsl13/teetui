@@ -24,7 +24,6 @@ func fileMtime(path string) time.Time {
 }
 
 type warlistFeature struct {
-	feature.NopFeature
 	store     *Store
 	path      string
 	mtime     time.Time
@@ -33,7 +32,7 @@ type warlistFeature struct {
 
 func (*warlistFeature) Name() string { return "warlist" }
 
-func (f *warlistFeature) Provision(h feature.Host) error {
+func (f *warlistFeature) Init(h feature.Host) error {
 	h.DefineConfig("cl_silent_chat_commands", "1", "apply !war/!peace/… locally without sending to server (0/1)")
 	h.DefineConfig("cl_war_list_auto_reload", "10", "reload the warlist file every N seconds (0=off)")
 

@@ -9,12 +9,11 @@ import (
 
 // tfeat exercises the Host registration surface.
 type tfeat struct {
-	feature.NopFeature
 	acted bool
 }
 
 func (*tfeat) Name() string { return "tfeat" }
-func (f *tfeat) Provision(h feature.Host) error {
+func (f *tfeat) Init(h feature.Host) error {
 	h.DefineConfig("cl_tfeat", "7", "demo cvar")
 	h.DefineAction("tfeat", "g", "demo action", func() { f.acted = true })
 	h.AddStatusField(func() string { return "TF-OK" })

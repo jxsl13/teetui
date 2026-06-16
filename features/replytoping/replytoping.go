@@ -15,11 +15,11 @@ import (
 // tileSize mirrors the render tile size for the "where are you" tile coords.
 const tileSize = 32
 
-type replyFeature struct{ feature.NopFeature }
+type replyFeature struct{}
 
 func (*replyFeature) Name() string { return "replytoping" }
 
-func (f *replyFeature) Provision(h feature.Host) error {
+func (f *replyFeature) Init(h feature.Host) error {
 	h.DefineAction("reply_to_ping", "H", "reply to the last chat ping", func() { f.reply(h) })
 	return nil
 }

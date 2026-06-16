@@ -86,14 +86,18 @@ func safeCall(e *entry, host Host, what string, fn func() bool) (res bool) {
 	return fn()
 }
 
-// ProvisionAll provisions every registered feature once, in order. A feature
-// whose Provision panics or errors is disabled (and its error returned) but the
-// others still provision (§V47).
-func ProvisionAll(host Host) []error {
+// InitAll runs the optional Init hook of every registered feature once, in
+// order. A feature with no Initializer is skipped; one whose Init panics or
+// errors is disabled (and its error returned) but the others still init (§V47).
+func InitAll(host Host) []error {
 	var errs []error
 	for _, e := range snapshot() {
-		safeCall(e, host, "Provision", func() bool {
-			if err := e.f.Provision(host); err != nil {
+		init, ok := e.f.(Initializer)
+		if !ok {
+			continue
+		}
+		safeCall(e, host, "Init", func() bool {
+			if err := init.Init(host); err != nil {
 				mu.Lock()
 				e.disabled = true
 				mu.Unlock()
@@ -105,25 +109,34 @@ func ProvisionAll(host Host) []error {
 	return errs
 }
 
-// The Fire* helpers dispatch one event to every enabled feature with panic
-// isolation. OnChat suppress is OR across features; OnKey handled stops at the
-// first consumer (§V39/§V47).
+// The Fire* helpers dispatch one event to every enabled feature that implements
+// the matching handler interface (type-asserted; others skipped, §V60), with
+// panic isolation. OnChat suppress is OR across features; OnKey handled stops at
+// the first consumer (§V39/§V47).
 
 func FireConnect(h Host) {
 	for _, e := range snapshot() {
-		safeCall(e, h, "OnConnect", func() bool { e.f.OnConnect(h); return false })
+		if hh, ok := e.f.(ConnectHandler); ok {
+			safeCall(e, h, "OnConnect", func() bool { hh.OnConnect(h); return false })
+		}
 	}
 }
 
 func FireDisconnect(h Host, reason string) {
 	for _, e := range snapshot() {
-		safeCall(e, h, "OnDisconnect", func() bool { e.f.OnDisconnect(h, reason); return false })
+		if hh, ok := e.f.(DisconnectHandler); ok {
+			safeCall(e, h, "OnDisconnect", func() bool { hh.OnDisconnect(h, reason); return false })
+		}
 	}
 }
 
 func FireChat(h Host, ev ChatEvent) (suppress bool) {
 	for _, e := range snapshot() {
-		if safeCall(e, h, "OnChat", func() bool { return e.f.OnChat(h, ev) }) {
+		hh, ok := e.f.(ChatHandler)
+		if !ok {
+			continue
+		}
+		if safeCall(e, h, "OnChat", func() bool { return hh.OnChat(h, ev) }) {
 			suppress = true
 		}
 	}
@@ -132,31 +145,43 @@ func FireChat(h Host, ev ChatEvent) (suppress bool) {
 
 func FireBroadcast(h Host, text string) {
 	for _, e := range snapshot() {
-		safeCall(e, h, "OnBroadcast", func() bool { e.f.OnBroadcast(h, text); return false })
+		if hh, ok := e.f.(BroadcastHandler); ok {
+			safeCall(e, h, "OnBroadcast", func() bool { hh.OnBroadcast(h, text); return false })
+		}
 	}
 }
 
 func FireServerMsg(h Host, text string) {
 	for _, e := range snapshot() {
-		safeCall(e, h, "OnServerMsg", func() bool { e.f.OnServerMsg(h, text); return false })
+		if hh, ok := e.f.(ServerMsgHandler); ok {
+			safeCall(e, h, "OnServerMsg", func() bool { hh.OnServerMsg(h, text); return false })
+		}
 	}
 }
 
 func FireKill(h Host, ev KillEvent) {
 	for _, e := range snapshot() {
-		safeCall(e, h, "OnKill", func() bool { e.f.OnKill(h, ev); return false })
+		if hh, ok := e.f.(KillHandler); ok {
+			safeCall(e, h, "OnKill", func() bool { hh.OnKill(h, ev); return false })
+		}
 	}
 }
 
 func FireTick(h Host, st client.TickState) {
 	for _, e := range snapshot() {
-		safeCall(e, h, "OnTick", func() bool { e.f.OnTick(h, st); return false })
+		if hh, ok := e.f.(TickHandler); ok {
+			safeCall(e, h, "OnTick", func() bool { hh.OnTick(h, st); return false })
+		}
 	}
 }
 
 func FireKey(h Host, k Key) (handled bool) {
 	for _, e := range snapshot() {
-		if safeCall(e, h, "OnKey", func() bool { return e.f.OnKey(h, k) }) {
+		hh, ok := e.f.(KeyHandler)
+		if !ok {
+			continue
+		}
+		if safeCall(e, h, "OnKey", func() bool { return hh.OnKey(h, k) }) {
 			return true
 		}
 	}

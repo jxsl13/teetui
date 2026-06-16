@@ -24,7 +24,7 @@ func (h *fh) Config(name string) (string, bool)   { v, ok := h.cfg[name]; return
 func TestResponders(t *testing.T) {
 	f := &responders{}
 	h := newFH()
-	_ = f.Provision(h)
+	_ = f.Init(h)
 
 	// Not a ping → nothing.
 	f.OnChat(h, feature.ChatEvent{Msg: "hello world", Name: "bob"})

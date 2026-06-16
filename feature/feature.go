@@ -4,13 +4,15 @@
 // purely against the Host capability surface, never against teetui internals.
 //
 // A feature package registers itself in init() and is activated by being blank-
-// imported from main.go:
+// imported from main.go. A Feature needs only a Name; setup and every event are
+// OPTIONAL interfaces the core discovers by type assertion, so a feature
+// implements just what it needs (no no-op stubs, §C27/§V60):
 //
 //	package myfeat
-//	type feat struct{ feature.NopFeature }
+//	type feat struct{}
 //	func (feat) Name() string                 { return "myfeat" }
-//	func (f feat) Provision(h feature.Host) error { /* declare cvars/actions */ return nil }
-//	func (feat) OnChat(h feature.Host, e feature.ChatEvent) bool { … }
+//	func (f feat) Init(h feature.Host) error   { /* declare cvars/actions */ return nil } // optional
+//	func (feat) OnChat(h feature.Host, e feature.ChatEvent) bool { … }                    // optional
 //	func init() { feature.Register(feat{}) }
 //
 // The Host action surface is exactly teetui's safe twclient capability set — no
@@ -85,26 +87,38 @@ type Host interface {
 	DataPath(name string) string
 }
 
-// Events is the set of event handlers a feature can implement; embed NopFeature
-// to default the ones you don't need. OnChat returning true suppresses the line;
-// OnKey returning true consumes the key.
-type Events interface {
-	OnConnect(Host)
-	OnDisconnect(Host, string)
-	OnChat(Host, ChatEvent) (suppress bool)
-	OnBroadcast(Host, string)
-	OnServerMsg(Host, string)
-	OnKill(Host, KillEvent)
-	OnTick(Host, client.TickState)
-	OnKey(Host, Key) (handled bool)
-}
-
-// Feature is a registerable module: an identity, a one-time Provision, and the
-// event handlers.
+// Feature is a registerable module identified by a unique name. Everything else
+// — setup, validation, teardown, event handling — is an OPTIONAL interface the
+// core discovers by type assertion (the Go optional-interface idiom, like code
+// checking whether an io.Reader is also an io.Closer). A feature implements only
+// what it needs, and adding a new optional interface never breaks existing
+// features (§C27/§V60).
 type Feature interface {
 	Name() string
-	Provision(Host) error
-	Events
+}
+
+// Initializer is the optional one-time setup hook: declare cvars/actions/status
+// fields and look up services. Named per the Go -er convention, not Caddy's
+// "Provisioner" (§C27/§V61). (Validator/Closer lifecycle hooks: §T101.)
+type Initializer interface {
+	Init(Host) error
+}
+
+// Event-handler interfaces — all OPTIONAL, named `…Handler` after net/http.Handler
+// (§C27/§V61). A feature implements only the events it cares about; the core
+// type-asserts each registered feature and skips the handlers it lacks (§V60).
+// OnChat returning true suppresses the line; OnKey returning true consumes the key.
+type ConnectHandler interface{ OnConnect(Host) }
+type DisconnectHandler interface{ OnDisconnect(Host, string) }
+type ChatHandler interface {
+	OnChat(Host, ChatEvent) (suppress bool)
+}
+type BroadcastHandler interface{ OnBroadcast(Host, string) }
+type ServerMsgHandler interface{ OnServerMsg(Host, string) }
+type KillHandler interface{ OnKill(Host, KillEvent) }
+type TickHandler interface{ OnTick(Host, client.TickState) }
+type KeyHandler interface {
+	OnKey(Host, Key) (handled bool)
 }
 
 // Cross-feature services are passed as `any` through Provide/Lookup (§V53): the
@@ -112,20 +126,6 @@ type Feature interface {
 // declares the MINIMAL interface it needs and type-asserts the looked-up value.
 // The SDK stays feature-agnostic — it declares no feature-specific service
 // contracts (no Warlist, no PingStore); those live with the consumer.
-
-// NopFeature is a no-op Events implementation; embed it so a feature only
-// overrides the events it cares about. (It does NOT supply Name/Provision —
-// those are mandatory per feature.)
-type NopFeature struct{}
-
-func (NopFeature) OnConnect(Host)                {}
-func (NopFeature) OnDisconnect(Host, string)     {}
-func (NopFeature) OnChat(Host, ChatEvent) bool   { return false }
-func (NopFeature) OnBroadcast(Host, string)      {}
-func (NopFeature) OnServerMsg(Host, string)      {}
-func (NopFeature) OnKill(Host, KillEvent)        {}
-func (NopFeature) OnTick(Host, client.TickState) {}
-func (NopFeature) OnKey(Host, Key) bool          { return false }
 
 // NopHost is a Host that does nothing and returns zero values. Embed it in tests
 // (or a minimal feature harness) and override only the methods you exercise, so a

@@ -25,7 +25,7 @@ func (h *capHost) DefineCommand(name, help string, run func(string) []string) {
 // client.ActSetTeam with the correct id.
 func TestTeamFeatureCommands(t *testing.T) {
 	h := newCapHost()
-	if err := (teamFeature{}).Provision(h); err != nil {
+	if err := (teamFeature{}).Init(h); err != nil {
 		t.Fatal(err)
 	}
 	if h.cmds["team"] == nil || h.cmds["join"] == nil {

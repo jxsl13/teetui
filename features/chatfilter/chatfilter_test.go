@@ -30,7 +30,7 @@ func (h *fh) DefineCommand(name, help string, run func(string) []string) {
 func TestChatFilterOnChat(t *testing.T) {
 	f := &chatFilter{}
 	h := newFH()
-	if err := f.Provision(h); err != nil {
+	if err := f.Init(h); err != nil {
 		t.Fatal(err)
 	}
 	// commands registered, filter added via the addfilter command.

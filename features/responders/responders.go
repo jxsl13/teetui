@@ -20,7 +20,6 @@ import (
 const interval = 30 * time.Second
 
 type responders struct {
-	feature.NopFeature
 	mu         sync.Mutex
 	lastTapped time.Time
 	lastAuto   time.Time
@@ -28,7 +27,7 @@ type responders struct {
 
 func (*responders) Name() string { return "responders" }
 
-func (r *responders) Provision(h feature.Host) error {
+func (r *responders) Init(h feature.Host) error {
 	h.DefineConfig("cl_tapped_out_message", "0", "auto-reply with the tapped-out message when pinged (0/1)")
 	h.DefineConfig("cl_tapped_out_message_text", "I'm currently tapped out (afk)", "the tapped-out reply text")
 	h.DefineConfig("cl_auto_reply", "0", "auto-reply with cl_auto_reply_msg on every ping (0/1)")

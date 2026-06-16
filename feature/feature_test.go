@@ -3,6 +3,8 @@ package feature
 import (
 	"errors"
 	"testing"
+
+	"github.com/jxsl13/twclient/client"
 )
 
 // fakeHost embeds NopHost and overrides only the bits these tests assert.
@@ -20,15 +22,16 @@ func (h *fakeHost) Log(msg string)                      { h.logs = append(h.logs
 func (h *fakeHost) DefineConfig(name, def, help string) { h.configs[name] = def }
 func (h *fakeHost) Config(name string) (string, bool)   { v, ok := h.configs[name]; return v, ok }
 
-// recFeat records events + declares a cvar at Provision.
+// recFeat records events + declares a cvar at Init. It implements only the
+// Initializer, ChatHandler and KeyHandler interfaces — no TickHandler etc.
 type recFeat struct {
-	NopFeature
 	chats    []string
+	ticks    int
 	suppress bool
 }
 
 func (*recFeat) Name() string { return "rec" }
-func (*recFeat) Provision(h Host) error {
+func (*recFeat) Init(h Host) error {
 	h.DefineConfig("rec_enabled", "1", "demo")
 	return nil
 }
@@ -39,8 +42,9 @@ func (f *recFeat) OnChat(h Host, e ChatEvent) bool {
 }
 func (f *recFeat) OnKey(_ Host, k Key) bool { return k.Name == "F9" }
 
-// §T75/§V39/§V46: features register, provision (declaring their own cvars),
-// receive events, and compose (suppress OR, key first-wins).
+// §T100/§V60: features register, init (declaring their own cvars), receive only
+// the events whose handler interface they implement, and compose (suppress OR,
+// key first-wins).
 func TestFeatureDispatch(t *testing.T) {
 	Reset()
 	defer Reset()
@@ -52,8 +56,8 @@ func TestFeatureDispatch(t *testing.T) {
 	}
 
 	h := newFakeHost()
-	if errs := ProvisionAll(h); len(errs) != 0 {
-		t.Fatalf("provision errs: %v", errs)
+	if errs := InitAll(h); len(errs) != 0 {
+		t.Fatalf("init errs: %v", errs)
 	}
 	if v, ok := h.Config("rec_enabled"); !ok || v != "1" {
 		t.Errorf("feature did not declare its cvar: %q,%v", v, ok)
@@ -65,6 +69,13 @@ func TestFeatureDispatch(t *testing.T) {
 	if len(f.chats) != 1 || h.chats[0] != "seen:hi" {
 		t.Errorf("event/action not applied: %v / %v", f.chats, h.chats)
 	}
+	// recFeat does NOT implement TickHandler → FireTick must not touch it and
+	// must not panic (§V60).
+	FireTick(h, client.TickState{})
+	if f.ticks != 0 {
+		t.Errorf("feature without TickHandler received OnTick")
+	}
+
 	f.suppress = true
 	if !FireChat(h, ChatEvent{Msg: "x"}) {
 		t.Error("suppress not propagated")
@@ -74,19 +85,40 @@ func TestFeatureDispatch(t *testing.T) {
 	}
 }
 
-// panicFeat panics in OnChat; provErrFeat errors in Provision.
-type panicFeat struct{ NopFeature }
+// nameOnly implements ONLY Feature (no handlers, no Init) — it must register and
+// survive every dispatch untouched, proving handlers are optional (§V60).
+type nameOnly struct{}
+
+func (nameOnly) Name() string { return "nameonly" }
+
+func TestFeatureNoHandlers(t *testing.T) {
+	Reset()
+	defer Reset()
+	Register(nameOnly{})
+	h := newFakeHost()
+	if errs := InitAll(h); len(errs) != 0 { // no Initializer → skipped, no error
+		t.Fatalf("init errs: %v", errs)
+	}
+	// none of these may panic for a handler-less feature.
+	FireConnect(h)
+	FireChat(h, ChatEvent{Msg: "x"})
+	FireTick(h, client.TickState{})
+	FireKey(h, Key{Rune: 'a'})
+}
+
+// panicFeat panics in OnChat; provErrFeat errors in Init.
+type panicFeat struct{}
 
 func (panicFeat) Name() string                { return "boom" }
-func (panicFeat) Provision(Host) error        { return nil }
+func (panicFeat) Init(Host) error             { return nil }
 func (panicFeat) OnChat(Host, ChatEvent) bool { panic("boom") }
 
-type provErrFeat struct{ NopFeature }
+type provErrFeat struct{}
 
-func (provErrFeat) Name() string         { return "preverr" }
-func (provErrFeat) Provision(Host) error { return errors.New("nope") }
+func (provErrFeat) Name() string    { return "preverr" }
+func (provErrFeat) Init(Host) error { return errors.New("nope") }
 
-// §T75/§V47: a Provision error or a hook panic disables only the offending
+// §T100/§V47: an Init error or a handler panic disables only the offending
 // feature; others keep working and the client never crashes.
 func TestFeatureIsolation(t *testing.T) {
 	Reset()
@@ -98,9 +130,9 @@ func TestFeatureIsolation(t *testing.T) {
 	Register(good)
 
 	h := newFakeHost()
-	errs := ProvisionAll(h)
+	errs := InitAll(h)
 	if len(errs) != 1 {
-		t.Fatalf("want 1 provision err, got %v", errs)
+		t.Fatalf("want 1 init err, got %v", errs)
 	}
 
 	// panicFeat panics → disabled; good still gets the event; no crash.
