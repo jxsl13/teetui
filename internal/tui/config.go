@@ -20,6 +20,7 @@ type Config struct {
 	ConnectTimeout int    // handshake timeout seconds (§T89, cl_connect_timeout)
 	MoveKeys       string // "wasd" | "arrows": which set moves; the other aims (§T104/§V66)
 	InputHoldMs    int    // movement/jump hold window in ms (§T110/§C34)
+	DummyName      string // dummy player name; "" = DDNet-style derived (§T133/§C43)
 }
 
 // NewConfig returns the default configuration. Feature-owned cvars are declared
@@ -81,6 +82,9 @@ var cvars = []cvar{
 	{"cl_input_hold_ms", "movement/jump hold window in ms (terminal has no key-release; key-repeat refreshes it)",
 		func(c *Config) string { return itoa(c.InputHoldMs) },
 		func(c *Config, v string) { c.InputHoldMs = clampAtoi(v, 50, 2000) }},
+	{"cl_dummy_name", "dummy player name (empty = derived from player_name, DDNet-style)",
+		func(c *Config) string { return c.DummyName },
+		func(c *Config, v string) { c.DummyName = clipName(v) }},
 }
 
 // findCvar returns the cvar named name, or nil.

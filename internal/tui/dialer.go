@@ -25,9 +25,12 @@ func (a *App) DefaultDialer(name, clan, skin string) func(s *session, addr strin
 		// Each session binds its OWN Observer/Controller so a dummy renders/controls
 		// independently (§T113). A dummy uses a distinct name so the server's per-IP
 		// dummy gate accepts it.
-		pname := name
+		// Names clipped to a rune boundary so the server never byte-cuts a multibyte
+		// rune into an invalid-utf8 glyph (§B21/§V93). A dummy gets a DDNet-style
+		// derived distinct name (cl_dummy_name | "name(N)"), not the old " (d)".
+		pname := clipName(name)
 		if s.name == "dummy" {
-			pname = name + " (d)"
+			pname = a.dummyName(name, s)
 		}
 		c := client.New(addr,
 			client.WithPlayerInfo(pname, clan, skin, -1),

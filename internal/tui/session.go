@@ -27,6 +27,21 @@ type session struct {
 	userClosing atomic.Bool  // user-initiated close: suppress auto-reconnect (§B16/§V84)
 	mapRecv     atomic.Int64 // map-download bytes received (§T128/§V88)
 	mapTotal    atomic.Int64 // map size; 0 = unknown/no progress yet
+	ddrace      atomic.Bool  // server is DDRace-derived (DDNet caps); gates Pause (§T134/§V94)
+}
+
+// sessionOrdinal returns s's index in the session slice (0 = primary, ≥1 for a
+// dummy) — used as the DDNet-style duplicate index in derived dummy names
+// (§T133/§V93). Returns the slice length if s is not found.
+func (a *App) sessionOrdinal(s *session) int {
+	a.sessMu.Lock()
+	defer a.sessMu.Unlock()
+	for i, e := range a.sessions {
+		if e == s {
+			return i
+		}
+	}
+	return len(a.sessions)
 }
 
 // newSession builds a session with its own State + InputController, wiring the
