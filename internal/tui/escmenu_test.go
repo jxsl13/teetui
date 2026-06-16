@@ -110,3 +110,37 @@ func TestEscMenuRenders(t *testing.T) {
 		t.Errorf("esc menu not rendered:\n%s", out)
 	}
 }
+
+// §T114/§V77: with a dummy connected, the menu lists a follow item per session;
+// selecting it switches the active session.
+func TestEscMenuFollow(t *testing.T) {
+	app, _ := newTestApp(t)
+	app.cur().connected.Store(true)
+	app.state0Observe(client.TickState{})
+
+	// One session → no follow list.
+	app.openEscMenu()
+	if hasLabel(app, "● main") {
+		t.Error("single session should not show a follow list")
+	}
+
+	// Add a dummy → follow items appear; active marked with ●.
+	d := app.newSession("dummy", nil, nil)
+	app.addSession(d)
+	app.openEscMenu()
+	if !hasLabel(app, "● main") || !hasLabel(app, "Follow dummy") {
+		t.Fatalf("follow list missing: %v", menuLabels(app))
+	}
+
+	// Activating "Follow dummy" switches the active session.
+	for _, it := range app.escMenu.items {
+		if it.label == "Follow dummy" {
+			it.run()
+		}
+	}
+	if app.cur() != d {
+		t.Error("Follow dummy did not switch active session")
+	}
+}
+
+func (a *App) state0Observe(st client.TickState) { a.sessions[0].state.Observe(nil, st) }

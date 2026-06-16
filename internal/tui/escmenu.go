@@ -54,6 +54,18 @@ func (a *App) buildEscMenuItems() []menuItem {
 		)
 	}
 	items = append(items, menuItem{"Disconnect", a.disconnectUser})
+	// Follow list (§T114): with dummies connected, list every own client; the
+	// active one is marked. Selecting follows it = render from its perspective.
+	if sessions, active := a.sessionList(); len(sessions) > 1 {
+		for i, s := range sessions {
+			i := i
+			label := "Follow " + s.name
+			if i == active {
+				label = "● " + s.name
+			}
+			items = append(items, menuItem{label, func() { a.setActive(i) }})
+		}
+	}
 	return items
 }
 
