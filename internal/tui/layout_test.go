@@ -79,7 +79,7 @@ func TestOverlaysClampToScreen(t *testing.T) {
 		scr.SetSize(sz.w, sz.h)
 		// These must not panic at any size; tcell ignores out-of-range SetContent,
 		// and the box dims are clamped to the screen.
-		drawHelp(scr, sz.w, sz.h)
+		drawHelp(scr, sz.w, sz.h, []string{" teetui — keys ", " ? help", " q quit"})
 		drawPopup(scr, sz.w, sz.h, greetingPopup())
 		drawPopup(scr, sz.w, sz.h, disconnectPopup("kicked"))
 		scr.Show()

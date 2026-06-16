@@ -1,49 +1,118 @@
 package tui
 
-import "github.com/gdamore/tcell/v2"
+import (
+	"strings"
 
-// helpLines is the key cheatsheet shown by the '?' overlay (§T28). Always
-// escapable with '?' or Esc (§V17).
-var helpLines = []string{
-	" teetui — keys ",
-	"",
-	" ?         toggle this help",
-	" q / Esc   quit",
-	" B         server browser",
-	" t / y     chat / team chat",
-	" F1 / F2   local / remote console (rcon)",
-	" v         toggle game view",
-	" Tab       scoreboard",
-	" a/d/s     move left / right / stop",
-	" space jump   h hook   k kill   e emote",
-	" 1-6       select weapon   f fire",
-	" arrows    aim (cardinal)",
-	" H         auto-reply to last ping",
-	" R         reconnect to server",
-	" F5 / F6   vote yes / no",
-	" PgUp/PgDn / wheel   scroll log",
-	"",
-	" chat:    !war / !peace / !team / !del <name>",
-	" console: spec [name], say <msg>, help",
-	"",
-	" input: Ctrl-U/K/W kill   Up/Down history",
-	"        Ctrl-R search     Tab complete",
-	"",
-	" keys rebindable: ~/.config/teetui/keymap.txt",
-	" press ? or Esc to close ",
+	"github.com/gdamore/tcell/v2"
+	"github.com/mattn/go-runewidth"
+)
+
+// helpLines builds the '?' overlay key cheatsheet from the LIVE keymap + the
+// registered feature actions, so it lists EVERY binding and tracks rebinds
+// rather than drifting from a hardcoded slice (§T96/§V56/§V19). Grouped for
+// readability; always escapable with '?' or Esc (§V17).
+func (a *App) helpLines() []string {
+	km := a.keymap
+	kb := func(act KeyAction) string {
+		toks := km.tokensFor(act)
+		if len(toks) == 0 {
+			return "(unbound)"
+		}
+		return strings.Join(toks, "/")
+	}
+
+	type row struct{ key, label string }
+	groups := []struct {
+		title string
+		rows  []row
+	}{
+		{"general", []row{
+			{kb(actHelp), "toggle this help"},
+			{kb(actQuit), "quit"},
+			{kb(actBrowser), "server browser"},
+			{kb(actChat), "chat"},
+			{kb(actTeamChat), "team chat"},
+			{kb(actLocalConsole) + " / " + kb(actRemoteConsole), "local / remote console (rcon)"},
+			{kb(actScoreboard), "scoreboard"},
+			{kb(actReconnect), "reconnect"},
+			{kb(actVoteYes) + " / " + kb(actVoteNo), "vote yes / no"},
+		}},
+		{"map / view", []row{
+			{kb(actVisual), "toggle game view"},
+			{kb(actSubcellToggle), "toggle sub-cell detail render"},
+			{kb(actFreeLook), "free-look map-pan (WASD/arrows pan, Esc exit)"},
+		}},
+		{"movement", []row{
+			{kb(actMoveLeft) + " / " + kb(actMoveRight) + " / " + kb(actMoveStop), "move left / right / stop"},
+			{kb(actJump), "jump"},
+			{kb(actHook), "hook"},
+			{kb(actFire), "fire"},
+			{"1-6", "select weapon"},
+			{"↑↓←→", "aim (cardinal)"},
+			{kb(actKill), "self-kill"},
+			{kb(actEmote), "emote"},
+		}},
+		{"input line", []row{
+			{"Ctrl-U/K/W", "kill line / to-end / word"},
+			{"↑ / ↓", "history prev / next"},
+			{"Ctrl-R", "reverse-i-search"},
+			{"Tab", "complete"},
+			{"PgUp/PgDn", "scroll log"},
+		}},
+	}
+	if len(a.featActions) > 0 { // feature-defined actions (§V46/§V56)
+		var rows []row
+		for _, fa := range a.featActions {
+			label := fa.name
+			if fa.help != "" {
+				label = fa.help
+			}
+			rows = append(rows, row{fa.key, label})
+		}
+		groups = append(groups, struct {
+			title string
+			rows  []row
+		}{"features", rows})
+	}
+
+	// Align the key column across all rows for a clean cheatsheet.
+	keyW := 0
+	for _, g := range groups {
+		for _, r := range g.rows {
+			if w := runewidth.StringWidth(r.key); w > keyW {
+				keyW = w
+			}
+		}
+	}
+
+	lines := []string{" teetui — keys "}
+	for _, g := range groups {
+		lines = append(lines, "", " "+g.title+":")
+		for _, r := range g.rows {
+			lines = append(lines, "  "+runewidth.FillRight(r.key, keyW)+"  "+r.label)
+		}
+	}
+	lines = append(lines,
+		"",
+		" chat:    !war / !peace / !team / !del <name>",
+		" console: spec [name], say <msg>, help",
+		"",
+		" keys rebindable: ~/.config/teetui/keymap.txt",
+		" press ? or Esc to close ")
+	return lines
 }
 
-// drawHelp renders the help box centered on the screen.
-func drawHelp(s tcell.Screen, w, h int) {
+// drawHelp renders the help box (lines) centered on the screen, clamped so a
+// small terminal never draws past its bounds (§V30).
+func drawHelp(s tcell.Screen, w, h int, lines []string) {
 	boxW := 0
-	for _, l := range helpLines {
-		if len(l) > boxW {
-			boxW = len(l)
+	for _, l := range lines {
+		if lw := runewidth.StringWidth(l); lw > boxW {
+			boxW = lw
 		}
 	}
 	boxW += 2
-	boxH := len(helpLines) + 2
-	// Clamp to the screen so a small terminal never draws past its bounds (§V30).
+	boxH := len(lines) + 2
 	if boxW > w {
 		boxW = w
 	}
@@ -64,7 +133,10 @@ func drawHelp(s tcell.Screen, w, h int) {
 			s.SetContent(x0+col, y0+row, ' ', nil, style)
 		}
 	}
-	for i, l := range helpLines {
+	for i, l := range lines {
+		if i >= boxH-2 { // never draw past the clamped box (§V30)
+			break
+		}
 		drawStr(s, x0+1, y0+1+i, boxW-1, style, l)
 	}
 }

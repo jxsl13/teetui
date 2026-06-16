@@ -92,6 +92,7 @@ type App struct {
 	featCmds     map[string]*featCmd                           // feature console commands (§T92)
 	featActRune  map[rune]func()                               // feature actions bound to a rune
 	featActKey   map[tcell.Key]func()                          // feature actions bound to a named key
+	featActions  []featAction                                  // feature action metadata for legend/help (§T95/§T96)
 	statusFields []func() string                               // status-bar contributions
 	nameStylers  []func(name, clan string) (tcell.Style, bool) // per-name styling
 	services     map[string]any                                // cross-feature service registry
@@ -1318,7 +1319,7 @@ func (a *App) draw() {
 
 	a.drawInput(lay.Input)
 	if a.help {
-		drawHelp(a.scr, w, h)
+		drawHelp(a.scr, w, h, a.helpLines())
 	}
 	a.mu.Lock()
 	popup := a.popup
@@ -1393,7 +1394,8 @@ func (a *App) drawInput(r Rect) {
 		}
 	default:
 		a.scr.HideCursor()
-		drawStr(a.scr, r.X, r.Y, r.W, StyleSystem,
-			" [t]chat [B]browser [F1/F2]console [v]visual [V]detail [k]kill [1-6/f]weapon [R]reconnect [Tab]board [?]help [q]quit ")
+		// Generated, context-aware key legend (§T95/§V55): reflects the live
+		// keymap + feature actions, truncated to the bar width.
+		drawStr(a.scr, r.X, r.Y, r.W, StyleSystem, a.legendLine(r.W))
 	}
 }

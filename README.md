@@ -182,7 +182,9 @@ spectate/pause from the console.
 ## Keybindings
 
 Defaults (rebindable via `~/.config/teetui/keymap.txt`, one `action = key` per
-line).
+line). The bottom legend bar and the `?` help overlay are generated from the
+live keymap and any feature actions, so they always reflect your current
+bindings.
 
 | key | action |
 |---|---|
@@ -194,6 +196,7 @@ line).
 | `F2` | remote console (rcon) |
 | `v` | toggle game view |
 | `V` | toggle sub-cell (half-block) detail |
+| `G` | free-look map-pan (arrows/WASD pan the camera, `Esc`/`G` recenter & exit) |
 | `Tab` | scoreboard |
 | `H` | reply to last ping *(replytoping feature)* |
 | `R` | reconnect |
@@ -204,7 +207,7 @@ line).
 | `e` | emote |
 | `1`–`6` | select weapon |
 | `f` | fire |
-| arrow keys | aim (cardinal) |
+| arrow keys / `WASD` | aim (cardinal); pan the map while free-look (`G`) is on |
 | `F5` / `F6` | vote yes / no |
 | `PgUp` / `PgDn` / wheel | scroll log |
 | `Ctrl-U` / `Ctrl-K` / `Ctrl-W` | kill line-before / -after / word (input) |

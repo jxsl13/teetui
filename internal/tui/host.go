@@ -27,6 +27,16 @@ type featCmd struct {
 	run  func(args string) []string
 }
 
+// featAction records a feature-defined NORMAL-mode action's metadata so the
+// generated legend + help overlay can list it (§T95/§T96/§V55/§V56). The bound
+// key is the default token the feature registered (feature actions are not
+// routed through the rebindable Keymap, unlike core actions).
+type featAction struct {
+	name string
+	key  string
+	help string
+}
+
 // appHost adapts *App to feature.Host — the capability surface handed to feature
 // modules (§T76/§I.feature). It exposes only teetui's safe twclient-backed
 // actions plus the registration sinks (config/action/status/name-style/service/
@@ -140,6 +150,8 @@ func (h appHost) DefineAction(name, defaultKey, help string, run func()) {
 		} else {
 			h.a.featActKey[key] = run
 		}
+		// record metadata for the generated legend + help (§T95/§T96).
+		h.a.featActions = append(h.a.featActions, featAction{name: name, key: defaultKey, help: help})
 	}
 }
 

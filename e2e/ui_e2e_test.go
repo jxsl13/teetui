@@ -190,6 +190,22 @@ func TestE2EUI(t *testing.T) {
 				mustScreen(t, app, sim, "visual back on", "x:")
 			})
 
+			t.Run("free_look", func(t *testing.T) {
+				keyRune(app, 'G') // enter free-look map-pan (§T94/§V54)
+				mustScreen(t, app, sim, "free-look indicator", "[free-look]")
+				keySpecial(app, tcell.KeyRight) // pan the camera off the tee
+				keySpecial(app, tcell.KeyDown)
+				mustScreen(t, app, sim, "still free-look after pan", "[free-look]")
+				keyRune(app, 'G') // exit + recenter
+				refuteScreen(t, app, sim, "free-look exited", "[free-look]")
+			})
+
+			t.Run("legend_generated", func(t *testing.T) {
+				// the bottom legend is generated from the live keymap (§T95/§V55).
+				mustScreen(t, app, sim, "legend browser key", "[B]browser")
+				mustScreen(t, app, sim, "legend free-look entry", "free-look")
+			})
+
 			t.Run("chat_local_echo", func(t *testing.T) {
 				keyRune(app, 't') // enter chat (§T11/§I keymap)
 				mustScreen(t, app, sim, "chat prompt", "say:")
