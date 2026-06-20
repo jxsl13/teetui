@@ -6,10 +6,10 @@ import "time"
 // means unlimited (draw on every event, today's behavior) (§T74/§V42).
 const DefaultMaxFPS = 60
 
-// DefaultViewportMinFPS is the default viewport-redraw FLOOR: ≥1 complete
-// redraw/sec of the ingame visual viewport while connected, even without new
+// DefaultViewportMinFPS is the default viewport-redraw FLOOR: ≥5 complete
+// redraws/sec of the ingame visual viewport while connected, even without new
 // ticks/events (§T130/§V90/§C41). 0 disables (pure event/tick-driven).
-const DefaultViewportMinFPS = 1
+const DefaultViewportMinFPS = 5
 
 // viewportInterval converts the viewport-min-fps floor to the heartbeat spacing,
 // clamped by the max-fps ceiling: a floor cannot redraw faster than the cap
